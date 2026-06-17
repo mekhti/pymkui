@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from database import Database
 
 
-# ---------- 添加：全局 JSON 美化 ----------
+# ---------- Add: global  JSON  prettify ----------
 class PrettyJSONResponse(JSONResponse):
     def render(self, content) -> bytes:
         return json.dumps(
@@ -29,24 +29,24 @@ class PrettyJSONResponse(JSONResponse):
 # ------------------------------------------------------------------
 
 t = """
-| 端口  | 协议    | 服务                            |
+|  port  |  protocol    | Service                            |
 | ----- | ------- | ------------------------------- |
 | 10800 | TCP     | StreamUI frontend                    |
 | 10801 | TCP     | StreamUI backend               |
-| 1935  | TCP     | RTMP 推流拉流                   |
-| 8080  | TCP     | FLV、HLS、TS、fMP4、WebRTC 支持 |
-| 8443  | TCP     | HTTPS、WebSocket 支持           |
-| 8554  | TCP     | RTSP 服务端口                   |
-| 10000 | TCP/UDP | RTP、RTCP 端口                  |
-| 8000  | UDP     | WebRTC ICE/STUN 端口            |
-| 9000  | UDP     | WebRTC 辅助端口                 |
+| 1935  | TCP     | RTMP push/pull                   |
+| 8080  | TCP     | FLV, HLS, TS, fMP4, WebRTC  support |
+| 8443  | TCP     | HTTPS, WebSocket  support           |
+| 8554  | TCP     | RTSP  service port                   |
+| 10000 | TCP/UDP | RTP, RTCP  port                  |
+| 8000  | UDP     | WebRTC ICE/STUN  port            |
+| 9000  | UDP     | WebRTC  auxiliary port                 |
 """
 
 app = FastAPI(
-    title="接口",
+    title="API",
     version="latest",
     description=t,
-    default_response_class=PrettyJSONResponse   # ★ 添加此行
+    default_response_class=PrettyJSONResponse   # ★ add this row
 )
 
 @app.exception_handler(Exception)
@@ -55,7 +55,7 @@ async def all_exception_handler(request: Request, exc: Exception):
     mk_logger.log_warn(f"FastAPI crashed: {exc}\n{stack}")
     return {"code": 500, "msg": "server internal error"}
 
-# 设置 CORS
+# Set up  CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -64,22 +64,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 全局变量（必须定义在模块顶部，不能放在函数里）
+# Global variables (must be defined at the top of the module, cannot be placed inside a function)
 _last_net_bytes = None
 _last_net_time = None
 
 @app.get(
     "/index/pyapi/host-stats",
-    tags=["性能"],
-    summary="获取当前系统资源使用率",
+    tags=["Performance"],
+    summary="Get current system resource usage",
 )
 async def get_host_stats():
     timestamp = datetime.now().strftime("%H:%M:%S")
 
-    # CPU 使用率
+    # CPU  usage
     cpu_percent = psutil.cpu_percent(interval=None)
 
-    # 内存
+    # memory
     memory = psutil.virtual_memory()
     memory_info = {
         "used": round(memory.used / (1024**3), 2),
@@ -87,14 +87,14 @@ async def get_host_stats():
     }
 
     record_path = mk_loader.get_full_path(mk_loader.get_config("protocol.mp4_save_path"))
-    # 磁盘
+    # Disk
     disk = psutil.disk_usage(record_path)
     disk_info = {
         "used": round(disk.used / (1024**3), 2),
         "total": round(disk.total / (1024**3), 2),
     }
 
-    # 网络速度（KB/s）
+    # network speed (KB/s)
     net = psutil.net_io_counters()
     now = time.time()
 
@@ -113,7 +113,7 @@ async def get_host_stats():
             "recv_total": net.bytes_recv / 1024
         }
 
-    # 记录本次值
+    # record this value
     _last_net_bytes = (net.bytes_sent, net.bytes_recv)
     _last_net_time = now
 
@@ -142,11 +142,11 @@ async def get_param_from_request(
     name: str,
 ) -> Optional[str]:
     """
-    从 Request 中依次从：
-      1. query 参数
-      2. body（json / form）
+    From  Request  in order from:
+      1. query param
+      2. body (json / form)
       3. header
-    获取参数，返回 str 或 None
+    get the param, return  str  or  None
     """
 
     # ---------- 1️⃣ Query ----------
@@ -179,7 +179,7 @@ async def get_param_from_request(
                 if name in parsed and parsed[name]:
                     return parsed[name][0]
     except Exception:
-        # body 解析失败直接忽略，继续查 header
+        # body  parse failure is ignored, continue checking  header
         pass
 
     # ---------- 3️⃣ Header ----------
@@ -192,7 +192,7 @@ async def get_param_from_request(
 
 def get_zlm_base_url() -> str:
     """
-    获取 ZLMediaKit 内部访问的 base URL。
+    Get ZLMediaKit  internal-access  base URL.
     - http.port != 0  → http://127.0.0.1:{http.port}
     - http.port == 0  → https://127.0.0.1:{http.ssl_port}
     """
@@ -211,10 +211,10 @@ def get_zlm_base_url() -> str:
 
 def get_forward_headers(request: Request) -> dict:
     """
-    从入站请求中提取需要透传给 ZLMediaKit 的 headers（目前仅 cookie）。
+    Extract from the inbound request the headers to pass through to  ZLMediaKit  of  headers (currently only  cookie).
     """
     headers: dict = {}
-    # 直接从 headers 中获取 cookie 字段（大小写不敏感）
+    # directly from  headers  get from  cookie  field (case-insensitive)
     cookie_header = None
     for key, value in request.headers.items():
         if key.lower() == "cookie":
@@ -226,49 +226,49 @@ def get_forward_headers(request: Request) -> dict:
     return headers
 
 
-# 初始化数据库实例
+# Initialize database instance
 db = Database()
 
 @app.post(
     "/index/pyapi/add_protocol_options",
-    tags=["转协议预设"],
-    summary="添加转协议预设参数",
+    tags=["Remux preset"],
+    summary="Add remux preset params",
 )
 async def add_protocol_options(request: Request):
     """
-    添加转协议预设参数
+    Add remux preset params
     
-    参数：
-    - name: 预设名称（必选）
-    - modify_stamp: 转协议时，是否开启帧级时间戳覆盖（字符串类型）
-    - enable_audio: 转协议是否开启音频（字符串类型）
-    - add_mute_audio: 添加acc静音音频（字符串类型）
-    - auto_close: 无人观看时，是否直接关闭（字符串类型）
-    - continue_push_ms: 推流断开后超时时间（毫秒，字符串类型）
-    - paced_sender_ms: 平滑发送定时器间隔（毫秒，字符串类型）
-    - enable_hls: 是否开启转换为hls(mpegts)（字符串类型）
-    - enable_hls_fmp4: 是否开启转换为hls(fmp4)（字符串类型）
-    - enable_mp4: 是否开启MP4录制（字符串类型）
-    - enable_rtsp: 是否开启转换为rtsp/webrtc（字符串类型）
-    - enable_rtmp: 是否开启转换为rtmp/flv（字符串类型）
-    - enable_ts: 是否开启转换为http-ts/ws-ts（字符串类型）
-    - enable_fmp4: 是否开启转换为http-fmp4/ws-fmp4（字符串类型）
-    - mp4_as_player: 是否将mp4录制当做观看者（字符串类型）
-    - mp4_max_second: mp4切片大小（秒，字符串类型）
-    - mp4_save_path: mp4录制保存路径（字符串类型）
-    - hls_save_path: hls录制保存路径（字符串类型）
-    - hls_demand: hls协议是否按需生成（字符串类型）
-    - rtsp_demand: rtsp[s]协议是否按需生成（字符串类型）
-    - rtmp_demand: rtmp[s]、http[s]-flv、ws[s]-flv协议是否按需生成（字符串类型）
-    - ts_demand: http[s]-ts协议是否按需生成（字符串类型）
-    - fmp4_demand: http[s]-fmp4、ws[s]-fmp4协议是否按需生成（字符串类型）
+    Params:
+    - name: Preset name (required)
+    - modify_stamp: whether to enable frame-level timestamp override during remux (string type)
+    - enable_audio: whether remux enables audio (string type)
+    - add_mute_audio: Add acc silent audio (string type)
+    - auto_close: whether to close directly when no one is watching (string type)
+    - continue_push_ms: timeout after push disconnects (ms, string type)
+    - paced_sender_ms: smooth send timer interval (ms, string type)
+    - enable_hls: whether to enable conversion to hls(mpegts) (string type)
+    - enable_hls_fmp4: whether to enable conversion to hls(fmp4) (string type)
+    - enable_mp4: whether to enable MP4 recording (string type)
+    - enable_rtsp: whether to enable conversion to rtsp/webrtc (string type)
+    - enable_rtmp: whether to enable conversion to rtmp/flv (string type)
+    - enable_ts: whether to enable conversion to http-ts/ws-ts (string type)
+    - enable_fmp4: whether to enable conversion to http-fmp4/ws-fmp4 (string type)
+    - mp4_as_player: whether to mp4 recording counted as a viewer (string type)
+    - mp4_max_second: mp4 segment size (sec, string type)
+    - mp4_save_path: mp4 recording save path (string type)
+    - hls_save_path: hls recording save path (string type)
+    - hls_demand: hls protocol is generated on-demand (string type)
+    - rtsp_demand: rtsp[s] protocol is generated on-demand (string type)
+    - rtmp_demand: rtmp[s], http[s]-flv, ws[s]-flv protocol is generated on-demand (string type)
+    - ts_demand: http[s]-ts protocol is generated on-demand (string type)
+    - fmp4_demand: http[s]-fmp4, ws[s]-fmp4 protocol is generated on-demand (string type)
     
-    注意：所有参数都是字符串类型，默认为NULL，用户可以不指定，C++程序会加载配置文件默认配置
+    Note: all params are string type, default is NULL; the user may omit it, C++ program will load the default config from the config file
     """
     try:
         body_bytes = await request.body()
         if not body_bytes:
-            return {"code": -1, "msg": "请求体为空"}
+            return {"code": -1, "msg": "Request body is empty"}
         
         content_type = request.headers.get("content-type", "")
         
@@ -284,14 +284,14 @@ async def add_protocol_options(request: Request):
             try:
                 data = json.loads(body_bytes.decode("utf-8"))
             except:
-                return {"code": -1, "msg": f"不支持的Content-Type: {content_type}"}
+                return {"code": -1, "msg": f"Unsupported Content-Type: {content_type}"}
         
         if not isinstance(data, dict):
-            return {"code": -1, "msg": "参数格式错误"}
+            return {"code": -1, "msg": "Invalid parameter format"}
         
         name = data.get("name")
         if not name:
-            return {"code": -1, "msg": "预设名称不能为空"}
+            return {"code": -1, "msg": "Preset name cannot be empty"}
         
         kwargs = {}
         for key in ['modify_stamp', 'enable_audio', 'add_mute_audio', 'auto_close',
@@ -304,30 +304,30 @@ async def add_protocol_options(request: Request):
         
         option_id = db.add_protocol_option(name, **kwargs)
         if option_id:
-            return {"code": 0, "msg": "添加成功", "data": {"id": option_id}}
+            return {"code": 0, "msg": "Added successfully", "data": {"id": option_id}}
         else:
-            return {"code": -1, "msg": "添加失败，预设名称可能已存在"}
+            return {"code": -1, "msg": "Add failed, preset name may already exist"}
     except Exception as e:
-        mk_logger.log_warn(f"添加转协议预设失败: {e}")
-        return {"code": -1, "msg": f"添加失败: {str(e)}"}
+        mk_logger.log_warn(f"Failed to add remux preset: {e}")
+        return {"code": -1, "msg": f"Add failed: {str(e)}"}
 
 @app.post(
     "/index/pyapi/update_protocol_options",
-    tags=["转协议预设"],
-    summary="修改转协议预设参数",
+    tags=["Remux preset"],
+    summary="Update remux preset params",
 )
 async def update_protocol_options(request: Request):
     """
-    修改转协议预设参数
+    Update remux preset params
     
-    参数：
-    - id: 预设ID（必选）
-    - 其他参数同添加接口
+    Params:
+    - id: preset ID (required)
+    - other params are the same as the add API
     """
     try:
         body_bytes = await request.body()
         if not body_bytes:
-            return {"code": -1, "msg": "请求体为空"}
+            return {"code": -1, "msg": "Request body is empty"}
         
         content_type = request.headers.get("content-type", "")
         
@@ -343,19 +343,19 @@ async def update_protocol_options(request: Request):
             try:
                 data = json.loads(body_bytes.decode("utf-8"))
             except:
-                return {"code": -1, "msg": f"不支持的Content-Type: {content_type}"}
+                return {"code": -1, "msg": f"Unsupported Content-Type: {content_type}"}
         
         if not isinstance(data, dict):
-            return {"code": -1, "msg": "参数格式错误"}
+            return {"code": -1, "msg": "Invalid parameter format"}
         
         option_id = data.get("id")
         if not option_id:
-            return {"code": -1, "msg": "预设ID不能为空"}
+            return {"code": -1, "msg": "preset ID cannot be empty"}
         
         try:
             option_id = int(option_id)
         except (ValueError, TypeError):
-            return {"code": -1, "msg": "预设ID格式错误"}
+            return {"code": -1, "msg": "preset ID format error"}
         
         kwargs = {}
         for key in ['name', 'modify_stamp', 'enable_audio', 'add_mute_audio', 'auto_close',
@@ -367,29 +367,29 @@ async def update_protocol_options(request: Request):
                 kwargs[key] = str(data[key])
         
         if db.update_protocol_option(option_id, **kwargs):
-            return {"code": 0, "msg": "修改成功"}
+            return {"code": 0, "msg": "Updated successfully"}
         else:
-            return {"code": -1, "msg": "修改失败，预设不存在或名称已存在"}
+            return {"code": -1, "msg": "Update failed, preset does not exist or name already exists"}
     except Exception as e:
-        mk_logger.log_warn(f"修改转协议预设失败: {e}")
-        return {"code": -1, "msg": f"修改失败: {str(e)}"}
+        mk_logger.log_warn(f"Failed to update remux preset: {e}")
+        return {"code": -1, "msg": f"Update failed: {str(e)}"}
 
 @app.post(
     "/index/pyapi/delete_protocol_options",
-    tags=["转协议预设"],
-    summary="删除转协议预设参数",
+    tags=["Remux preset"],
+    summary="Delete remux preset params",
 )
 async def delete_protocol_options(request: Request):
     """
-    删除转协议预设参数
+    Delete remux preset params
     
-    参数：
-    - id: 预设ID（必选）
+    Params:
+    - id: preset ID (required)
     """
     try:
         body_bytes = await request.body()
         if not body_bytes:
-            return {"code": -1, "msg": "请求体为空"}
+            return {"code": -1, "msg": "Request body is empty"}
         
         content_type = request.headers.get("content-type", "")
         
@@ -405,89 +405,89 @@ async def delete_protocol_options(request: Request):
             try:
                 data = json.loads(body_bytes.decode("utf-8"))
             except:
-                return {"code": -1, "msg": f"不支持的Content-Type: {content_type}"}
+                return {"code": -1, "msg": f"Unsupported Content-Type: {content_type}"}
         
         if not isinstance(data, dict):
-            return {"code": -1, "msg": "参数格式错误"}
+            return {"code": -1, "msg": "Invalid parameter format"}
         
         option_id = data.get("id")
         if not option_id:
-            return {"code": -1, "msg": "预设ID不能为空"}
+            return {"code": -1, "msg": "preset ID cannot be empty"}
         
         try:
             option_id = int(option_id)
         except (ValueError, TypeError):
-            return {"code": -1, "msg": "预设ID格式错误"}
+            return {"code": -1, "msg": "preset ID format error"}
         
         if db.delete_protocol_option(option_id):
-            return {"code": 0, "msg": "删除成功"}
+            return {"code": 0, "msg": "Deleted successfully"}
         else:
-            return {"code": -1, "msg": "删除失败，预设不存在"}
+            return {"code": -1, "msg": "Delete failed, preset does not exist"}
     except Exception as e:
-        mk_logger.log_warn(f"删除转协议预设失败: {e}")
-        return {"code": -1, "msg": f"删除失败: {str(e)}"}
+        mk_logger.log_warn(f"Failed to delete remux preset: {e}")
+        return {"code": -1, "msg": f"Delete failed: {str(e)}"}
 
 @app.get(
     "/index/pyapi/get_protocol_options_list",
-    tags=["转协议预设"],
-    summary="获取转协议预设参数列表",
+    tags=["Remux preset"],
+    summary="Get remux preset params list",
 )
 async def get_protocol_options_list():
     """
-    获取转协议预设参数列表
+    Get remux preset params list
     """
     try:
         options = db.get_all_protocol_options()
-        return {"code": 0, "msg": "获取成功", "data": options}
+        return {"code": 0, "msg": "Retrieved successfully", "data": options}
     except Exception as e:
-        mk_logger.log_warn(f"获取转协议预设列表失败: {e}")
-        return {"code": -1, "msg": f"获取失败: {str(e)}"}
+        mk_logger.log_warn(f"Failed to get remux preset list: {e}")
+        return {"code": -1, "msg": f"Get failed: {str(e)}"}
 
 @app.get(
     "/index/pyapi/get_protocol_options",
-    tags=["转协议预设"],
-    summary="获取转协议预设参数详情",
+    tags=["Remux preset"],
+    summary="Get remux preset params detail",
 )
-async def get_protocol_options(id: int = Query(..., description="预设ID")):
+async def get_protocol_options(id: int = Query(..., description="preset ID")):
     """
-    获取转协议预设参数详情
+    Get remux preset params detail
     
-    参数：
-    - id: 预设ID（必选）
+    Params:
+    - id: preset ID (required)
     """
     try:
         option = db.get_protocol_option(id)
         if option:
-            return {"code": 0, "msg": "获取成功", "data": option}
+            return {"code": 0, "msg": "Retrieved successfully", "data": option}
         else:
-            return {"code": -1, "msg": "预设不存在"}
+            return {"code": -1, "msg": "preset does not exist"}
     except Exception as e:
-        mk_logger.log_warn(f"获取转协议预设详情失败: {e}")
-        return {"code": -1, "msg": f"获取失败: {str(e)}"}
+        mk_logger.log_warn(f"Failed to get remux preset detail: {e}")
+        return {"code": -1, "msg": f"Get failed: {str(e)}"}
 
 @app.post(
     "/index/pyapi/addStreamProxy",
-    tags=["拉流代理"],
-    summary="添加拉流代理",
+    tags=["Pull Proxy"],
+    summary="Add Pull Proxy",
 )
 async def add_stream_proxy(request: Request):
     """
-    添加拉流代理
+    Add Pull Proxy
 
-    参数：
-    - vhost: 虚拟主机，默认__defaultVhost__
-    - app: 应用名（必选）
-    - stream: 流ID（必选）
-    - url: 拉流地址（必选）
-    - on_demand: 按需拉流（bool，0/1）。为 1 时不立即调用 ZLMediaKit addStreamProxy，
-                 仅将配置写入数据库，等待有人播放时再由 ZLM 自动触发拉流。
-    - custom_params: 自定义参数（JSON字符串）
-    - protocol_params: 转协议参数（JSON字符串）
+    Params:
+    - vhost: virtual host, default __defaultVhost__
+    - app: application name (required)
+    - stream: stream ID (required)
+    - url: pull URL (required)
+    - on_demand: on-demand pull (bool, 0/1). When 1, ZLMediaKit addStreamProxy is not called immediately,
+                 only writes the config to the database, waiting for someone to play before ZLM auto-triggers the pull.
+    - custom_params: custom params (JSON string)
+    - protocol_params: remux params (JSON string)
     """
     try:
         body_bytes = await request.body()
         if not body_bytes:
-            return {"code": -1, "msg": "请求体为空"}
+            return {"code": -1, "msg": "Request body is empty"}
         
         content_type = request.headers.get("content-type", "")
         
@@ -503,16 +503,16 @@ async def add_stream_proxy(request: Request):
             try:
                 data = json.loads(body_bytes.decode("utf-8"))
             except:
-                return {"code": -1, "msg": f"不支持的Content-Type: {content_type}"}
+                return {"code": -1, "msg": f"Unsupported Content-Type: {content_type}"}
         
         if not isinstance(data, dict):
-            return {"code": -1, "msg": "参数格式错误"}
+            return {"code": -1, "msg": "Invalid parameter format"}
         
         vhost = data.get("vhost", "__defaultVhost__")
         app = data.get("app")
         stream = data.get("stream")
 
-        # 多地址：urls=[{"url":..., "params": {"schema":"hls","rtp_type":"0",...}}, ...]
+        # Multi-address: urls=[{"url":..., "params": {"schema":"hls","rtp_type":"0",...}}, ...]
         urls_raw = data.get("urls")
         if isinstance(urls_raw, str):
             try:
@@ -522,9 +522,9 @@ async def add_stream_proxy(request: Request):
         urls_list = [u for u in (urls_raw or []) if isinstance(u, dict) and u.get("url")]
 
         if not app or not stream or not urls_list:
-            return {"code": -1, "msg": "app、stream、urls 参数不能为空"}
+            return {"code": -1, "msg": "app, stream, urls params cannot be empty"}
 
-        # 取第一条作为主地址及其地址级参数（schema、rtp_type 等）
+        # Take the first one as the primary address and its address-level params (schema, rtp_type, etc.)
         first_item        = urls_list[0]
         url               = first_item.get("url")
         first_url_params  = first_item.get("params", {})
@@ -538,14 +538,14 @@ async def add_stream_proxy(request: Request):
         protocol_params = data.get("protocol_params", "{}")
         remark          = data.get("remark", "")
 
-        # on_demand: 接受 bool / 0 / 1 / "0" / "1" / "true" / "false"
+        # on_demand: accepts bool / 0 / 1 / "0" / "1" / "true" / "false"
         raw_on_demand = data.get("on_demand", 0)
         if isinstance(raw_on_demand, str):
             on_demand = raw_on_demand.lower() in ("1", "true", "yes")
         else:
             on_demand = bool(raw_on_demand)
 
-        # force: 强制添加模式，1=拉流失败也写库；同时透传给 ZLM 的 force 参数
+        # force: force-add mode, 1=write to DB even if pull fails; also passed through to ZLM's force param
         raw_force = data.get("force", 0)
         if isinstance(raw_force, str):
             force = 1 if raw_force in ("1", "true", "yes") else 0
@@ -553,7 +553,7 @@ async def add_stream_proxy(request: Request):
             force = 1 if raw_force else 0
 
         if on_demand:
-            # 按需模式：直接写库，不调用 ZLM，等待播放时 ZLM 自动拉流
+            # On-demand mode: write to DB directly, don't call ZLM, ZLM auto-pulls on playback
             proxy_id = db.add_pull_proxy({
                 "vhost": vhost,
                 "app": app,
@@ -565,12 +565,12 @@ async def add_stream_proxy(request: Request):
             })
             if proxy_id:
                 db.set_proxy_urls(proxy_id, urls_list)
-                return {"code": 0, "msg": "添加成功（按需模式，未立即拉流）", "data": {"id": proxy_id}}
+                return {"code": 0, "msg": "Added successfully (on-demand mode, not pulled immediately)", "data": {"id": proxy_id}}
             else:
-                return {"code": -1, "msg": "写入数据库失败，vhost/app/stream 组合可能已存在"}
+                return {"code": -1, "msg": "Failed to write to database, vhost/app/stream combination may already exist"}
 
-        # 普通/强制模式：通过 mk_loader.add_stream_proxy 调用 ZLMediaKit
-        # 构造传给 mk_loader 的 opt 参数（地址级 + custom + protocol）
+        # Normal/force mode: call ZLMediaKit via mk_loader.add_stream_proxy
+        # Build the opt param passed to mk_loader (address-level + custom + protocol)
         proxy_record_tmp = {
             "vhost": vhost, "app": app, "stream": stream,
             "custom_params": custom_params,
@@ -609,35 +609,35 @@ async def add_stream_proxy(request: Request):
             if pid:
                 db.set_proxy_urls(pid, urls_list)
             if add_err:
-                return {"code": 0, "msg": f"强制添加成功（ZLM: {add_err}）"}
-            return {"code": 0, "msg": "添加成功"}
+                return {"code": 0, "msg": f"Force-add succeeded (ZLM: {add_err})"}
+            return {"code": 0, "msg": "Added successfully"}
         else:
-            return {"code": -1, "msg": f"添加失败: {add_err}"}
+            return {"code": -1, "msg": f"Add failed: {add_err}"}
     except Exception as e:
-        mk_logger.log_warn(f"添加拉流代理失败: {e}")
-        return {"code": -1, "msg": f"添加失败: {str(e)}"}
+        mk_logger.log_warn(f"Failed to add Pull Proxy: {e}")
+        return {"code": -1, "msg": f"Add failed: {str(e)}"}
 
 @app.post(
     "/index/pyapi/delStreamProxy",
-    tags=["拉流代理"],
-    summary="删除拉流代理",
+    tags=["Pull Proxy"],
+    summary="Delete Pull Proxy",
 )
 async def del_stream_proxy(request: Request):
     """
-    删除拉流代理
+    Delete Pull Proxy
 
-    参数：
-    - id: 数据库记录的唯一 ID（必选）
+    Params:
+    - id: unique ID of the database record (required)
 
-    流程：
-    1. 按 id 查询数据库，获取 vhost/app/stream
-    2. 组合 key = vhost/app/stream，调用 ZLMediaKit delStreamProxy（ZLM 侧不存在不报错）
-    3. 无论 ZLM 返回什么，都从数据库删除该记录
+    Flow:
+    1. Query the database by id to get vhost/app/stream
+    2. Combine key = vhost/app/stream, call ZLMediaKit delStreamProxy (no error if it doesn't exist on the ZLM side)
+    3. Regardless of what ZLM returns, delete the record from the database
     """
     try:
         body_bytes = await request.body()
         if not body_bytes:
-            return {"code": -1, "msg": "请求体为空"}
+            return {"code": -1, "msg": "Request body is empty"}
 
         content_type = request.headers.get("content-type", "")
 
@@ -653,32 +653,32 @@ async def del_stream_proxy(request: Request):
             try:
                 data = json.loads(body_bytes.decode("utf-8"))
             except:
-                return {"code": -1, "msg": f"不支持的Content-Type: {content_type}"}
+                return {"code": -1, "msg": f"Unsupported Content-Type: {content_type}"}
 
         if not isinstance(data, dict):
-            return {"code": -1, "msg": "参数格式错误"}
+            return {"code": -1, "msg": "Invalid parameter format"}
 
         proxy_id = data.get("id")
         if not proxy_id:
-            return {"code": -1, "msg": "id 参数不能为空"}
+            return {"code": -1, "msg": "id param cannot be empty"}
         try:
             proxy_id = int(proxy_id)
         except (ValueError, TypeError):
-            return {"code": -1, "msg": "id 格式错误，必须为整数"}
+            return {"code": -1, "msg": "id format error, must be an integer"}
 
-        # 1. 查询数据库获取流信息
+        # 1. Query the database to get stream info
         proxy = db.get_pull_proxy(proxy_id)
         if not proxy:
-            return {"code": -1, "msg": "代理不存在"}
+            return {"code": -1, "msg": "proxy does not exist"}
 
         vhost  = proxy.get("vhost") or "__defaultVhost__"
         app    = proxy.get("app") or ""
         stream = proxy.get("stream") or ""
         if not app or not stream:
-            return {"code": -1, "msg": "数据库记录异常：app/stream 为空"}
+            return {"code": -1, "msg": "Abnormal database record: app/stream is empty"}
         key    = f"{vhost}/{app}/{stream}"
 
-        # 2. 调用 ZLMediaKit delStreamProxy，ZLM 侧不存在时仅记录日志
+        # 2. Call ZLMediaKit delStreamProxy; if it doesn't exist on the ZLM side, just log it
         try:
             zlm_url = f"{get_zlm_base_url()}/index/api/delStreamProxy"
             response = await client.post(
@@ -689,74 +689,74 @@ async def del_stream_proxy(request: Request):
             zlm_result = response.json()
             if zlm_result.get("code") != 0:
                 mk_logger.log_warn(
-                    f"ZLM delStreamProxy 返回非 0: {zlm_result.get('msg')}，key={key}"
+                    f"ZLM delStreamProxy returned non-0: {zlm_result.get('msg')}, key={key}"
                 )
         except Exception as e:
-            mk_logger.log_warn(f"调用 ZLM delStreamProxy 失败（忽略）: {e}，key={key}")
+            mk_logger.log_warn(f"Failed to call ZLM delStreamProxy (ignored): {e}, key={key}")
 
-        # 3. 无论 ZLM 结果如何，删除数据库记录
+        # 3. Regardless of the ZLM result, delete the database record
         db.delete_pull_proxy(vhost, app, stream)
 
-        return {"code": 0, "msg": "删除成功"}
+        return {"code": 0, "msg": "Deleted successfully"}
     except Exception as e:
-        mk_logger.log_warn(f"删除拉流代理失败: {e}")
-        return {"code": -1, "msg": f"删除失败: {str(e)}"}
+        mk_logger.log_warn(f"Failed to delete Pull Proxy: {e}")
+        return {"code": -1, "msg": f"Delete failed: {str(e)}"}
 
 @app.get(
     "/index/pyapi/getStreamProxyList",
-    tags=["拉流代理"],
-    summary="获取拉流代理列表",
+    tags=["Pull Proxy"],
+    summary="Get Pull Proxy list",
 )
 async def get_stream_proxy_list():
-    """获取拉流代理列表（含各代理的多地址列表）"""
+    """Get Pull Proxy list (including each proxy's multi-address list)"""
     try:
         proxies = db.get_all_pull_proxies_with_urls()
-        return {"code": 0, "msg": "获取成功", "data": proxies}
+        return {"code": 0, "msg": "Retrieved successfully", "data": proxies}
     except Exception as e:
-        mk_logger.log_warn(f"获取拉流代理列表失败: {e}")
-        return {"code": -1, "msg": f"获取失败: {str(e)}"}
+        mk_logger.log_warn(f"Failed to get Pull Proxy list: {e}")
+        return {"code": -1, "msg": f"Get failed: {str(e)}"}
 
 @app.get(
     "/index/pyapi/getStreamProxy",
-    tags=["拉流代理"],
-    summary="获取拉流代理详情",
+    tags=["Pull Proxy"],
+    summary="Get Pull Proxy detail",
 )
-async def get_stream_proxy(id: int = Query(..., description="代理ID")):
-    """获取拉流代理详情（含多地址列表）"""
+async def get_stream_proxy(id: int = Query(..., description="proxy ID")):
+    """Get Pull Proxy detail (including multi-address list)"""
     try:
         proxy = db.get_pull_proxy_with_urls(id)
         if proxy:
-            return {"code": 0, "msg": "获取成功", "data": proxy}
+            return {"code": 0, "msg": "Retrieved successfully", "data": proxy}
         else:
-            return {"code": -1, "msg": "代理不存在"}
+            return {"code": -1, "msg": "proxy does not exist"}
     except Exception as e:
-        mk_logger.log_warn(f"获取拉流代理详情失败: {e}")
-        return {"code": -1, "msg": f"获取失败: {str(e)}"}
+        mk_logger.log_warn(f"Failed to get Pull Proxy detail: {e}")
+        return {"code": -1, "msg": f"Get failed: {str(e)}"}
 
 @app.post(
     "/index/pyapi/updateStreamProxy",
-    tags=["拉流代理"],
-    summary="更新拉流代理配置",
+    tags=["Pull Proxy"],
+    summary="Update Pull Proxy config",
 )
 async def update_stream_proxy(request: Request):
     """
-    更新拉流代理的配置（不重启 ZLM 拉流，仅更新数据库）。
+    Update the Pull Proxy config (does not restart the ZLM pull, only updates the database).
 
-    参数：
-    - id: 数据库记录 ID（必选）
-    - urls: 多地址列表（[{"url":..., "params":{...}}, ...]，可选）
-    - remark: 备注（可选）
-    - vhost: 虚拟主机（可选，不建议修改）
-    - app: 应用名（可选，不建议修改）
-    - stream: 流ID（可选，不建议修改）
-    - on_demand: 按需模式（可选）
-    - custom_params: 自定义参数 JSON（可选）
-    - protocol_params: 转协议参数 JSON（可选）
+    Params:
+    - id: database record ID (required)
+    - urls: multi-address list ([{"url":..., "params":{...}}, ...], optional)
+    - remark: note (optional)
+    - vhost: virtual host (optional, not recommended to modify)
+    - app: application name (optional, not recommended to modify)
+    - stream: stream ID (optional, not recommended to modify)
+    - on_demand: on-demand mode (optional)
+    - custom_params: custom params JSON (optional)
+    - protocol_params: remux params JSON (optional)
     """
     try:
         body_bytes = await request.body()
         if not body_bytes:
-            return {"code": -1, "msg": "请求体为空"}
+            return {"code": -1, "msg": "Request body is empty"}
         content_type = request.headers.get("content-type", "")
         if "application/json" in content_type or not content_type:
             try:
@@ -768,22 +768,22 @@ async def update_stream_proxy(request: Request):
             data = {k: v[0] if len(v) == 1 else v for k, v in parsed.items()}
 
         if not isinstance(data, dict):
-            return {"code": -1, "msg": "参数格式错误"}
+            return {"code": -1, "msg": "Invalid parameter format"}
 
         proxy_id = data.get("id")
         if not proxy_id:
-            return {"code": -1, "msg": "id 参数不能为空"}
+            return {"code": -1, "msg": "id param cannot be empty"}
         try:
             proxy_id = int(proxy_id if not isinstance(proxy_id, list) else proxy_id[0])
         except (ValueError, TypeError):
-            return {"code": -1, "msg": "id 格式错误，必须为整数"}
+            return {"code": -1, "msg": "id format error, must be an integer"}
 
-        # 确认记录存在
+        # Confirm the record exists
         existing = db.get_pull_proxy(proxy_id)
         if not existing:
-            return {"code": -1, "msg": "代理不存在"}
+            return {"code": -1, "msg": "proxy does not exist"}
 
-        # 构建更新字段（只更新传入的字段）
+        # Build update fields (only update the fields passed in)
         update_kwargs = {}
         if "vhost" in data:
             update_kwargs["vhost"] = data["vhost"] or "__defaultVhost__"
@@ -804,11 +804,11 @@ async def update_stream_proxy(request: Request):
             else:
                 update_kwargs["on_demand"] = 1 if raw_od else 0
 
-        # 更新主表
+        # Update the main table
         if update_kwargs:
             db.update_pull_proxy(proxy_id, **update_kwargs)
 
-        # 更新多地址列表（全量替换）
+        # Update the multi-address list (full replacement)
         urls_raw = data.get("urls")
         if urls_raw is not None:
             if isinstance(urls_raw, str):
@@ -819,18 +819,18 @@ async def update_stream_proxy(request: Request):
             urls_list = [u for u in (urls_raw or []) if isinstance(u, dict) and u.get("url")]
             db.set_proxy_urls(proxy_id, urls_list)
 
-        # 读取更新后的最新记录，判断是否需要同步 ZLM
+        # Read the latest record after update, determine whether ZLM needs to be synced
         updated = db.get_pull_proxy(proxy_id)
         final_on_demand = int(updated.get("on_demand", 1)) if updated else 1
 
         if final_on_demand == 0 and updated:
-            # on_demand=0：需要先删除 ZLM 侧旧代理，再重新添加，确保配置生效
+            # on_demand=0: must first delete the old proxy on the ZLM side, then re-add to ensure the config takes effect
             vhost  = updated.get("vhost") or "__defaultVhost__"
             app    = updated.get("app") or ""
             stream = updated.get("stream") or ""
             key    = f"{vhost}/{app}/{stream}"
 
-            # 1. 调用 ZLM delStreamProxy（失败仅记录日志）
+            # 1. Call ZLM delStreamProxy (only log on failure)
             try:
                 zlm_del_url = f"{get_zlm_base_url()}/index/api/delStreamProxy"
                 del_resp = await client.post(
@@ -841,12 +841,12 @@ async def update_stream_proxy(request: Request):
                 del_result = del_resp.json()
                 if del_result.get("code") != 0:
                     mk_logger.log_warn(
-                        f"update_stream_proxy | ZLM delStreamProxy 非0: {del_result.get('msg')}, key={key}"
+                        f"update_stream_proxy | ZLM delStreamProxy non-0: {del_result.get('msg')}, key={key}"
                     )
             except Exception as e:
-                mk_logger.log_warn(f"update_stream_proxy | ZLM delStreamProxy 失败（忽略）: {e}, key={key}")
+                mk_logger.log_warn(f"update_stream_proxy | ZLM delStreamProxy failed (ignored): {e}, key={key}")
 
-            # 2. 取地址列表，调用 mk_loader.add_stream_proxy
+            # 2. Take the address list, call mk_loader.add_stream_proxy
             proxy_urls = db.get_proxy_urls(proxy_id)
             if proxy_urls:
                 first_item = proxy_urls[0]
@@ -868,10 +868,10 @@ async def update_stream_proxy(request: Request):
                     def _update_cb(err, k):
                         if err:
                             mk_logger.log_warn(
-                                f"update_stream_proxy | mk_loader.add_stream_proxy 失败: {err}, key={k}"
+                                f"update_stream_proxy | mk_loader.add_stream_proxy failed: {err}, key={k}"
                             )
                         else:
-                            mk_logger.log_info(f"update_stream_proxy | mk_loader.add_stream_proxy 成功, key={k}")
+                            mk_logger.log_info(f"update_stream_proxy | mk_loader.add_stream_proxy succeeded, key={k}")
 
                     mk_loader.add_stream_proxy(
                         vhost, app, stream, url,
@@ -882,33 +882,33 @@ async def update_stream_proxy(request: Request):
                         opt=opt_tmp,
                     )
 
-        return {"code": 0, "msg": "修改成功"}
+        return {"code": 0, "msg": "Updated successfully"}
     except Exception as e:
-        mk_logger.log_warn(f"更新拉流代理失败: {e}")
-        return {"code": -1, "msg": f"修改失败: {str(e)}"}
+        mk_logger.log_warn(f"Failed to update Pull Proxy: {e}")
+        return {"code": -1, "msg": f"Update failed: {str(e)}"}
 
 
 @app.post(
     "/index/pyapi/toggleStreamProxyMode",
-    tags=["拉流代理"],
-    summary="切换拉流代理模式（按需↔立即）",
+    tags=["Pull Proxy"],
+    summary="Toggle Pull Proxy mode (on-demand ↔ immediate)",
 )
 async def toggle_stream_proxy_mode(request: Request):
     """
-    切换拉流代理的 on_demand 模式。
+    Toggle the Pull Proxy's on_demand mode.
 
-    - 按需(on_demand=1) → 立即(on_demand=0)：
-      调用 ZLM addStreamProxy（force=1 覆盖已有），写库 on_demand=0
-    - 立即(on_demand=0) → 按需(on_demand=1)：
-      调用 ZLM delStreamProxy 停止当前拉流，写库 on_demand=1
+    - on-demand (on_demand=1) → immediate (on_demand=0):
+      call ZLM addStreamProxy (force=1 overrides existing), write DB on_demand=0
+    - immediate (on_demand=0) → on-demand (on_demand=1):
+      call ZLM delStreamProxy to stop the current pull, write DB on_demand=1
 
-    参数：
-    - id: 数据库记录 ID（必选）
+    Params:
+    - id: database record ID (required)
     """
     try:
         body_bytes = await request.body()
         if not body_bytes:
-            return {"code": -1, "msg": "请求体为空"}
+            return {"code": -1, "msg": "Request body is empty"}
         content_type = request.headers.get("content-type", "")
         if "application/json" in content_type or not content_type:
             try:
@@ -920,19 +920,19 @@ async def toggle_stream_proxy_mode(request: Request):
             data = {k: v[0] if len(v) == 1 else v for k, v in parsed.items()}
 
         if not isinstance(data, dict):
-            return {"code": -1, "msg": "参数格式错误"}
+            return {"code": -1, "msg": "Invalid parameter format"}
 
         proxy_id = data.get("id")
         if not proxy_id:
-            return {"code": -1, "msg": "id 参数不能为空"}
+            return {"code": -1, "msg": "id param cannot be empty"}
         try:
             proxy_id = int(proxy_id)
         except (ValueError, TypeError):
-            return {"code": -1, "msg": "id 格式错误，必须为整数"}
+            return {"code": -1, "msg": "id format error, must be an integer"}
 
         proxy = db.get_pull_proxy(proxy_id)
         if not proxy:
-            return {"code": -1, "msg": "代理不存在"}
+            return {"code": -1, "msg": "proxy does not exist"}
 
         vhost  = proxy.get("vhost") or "__defaultVhost__"
         app    = proxy.get("app") or ""
@@ -940,16 +940,16 @@ async def toggle_stream_proxy_mode(request: Request):
         key    = f"{vhost}/{app}/{stream}"
         current_on_demand = int(bool(proxy.get("on_demand", 0)))
 
-        # 从多地址表取第一条地址
+        # Take the first address from the multi-address table
         proxy_urls = db.get_proxy_urls(proxy_id)
         first_url_item  = proxy_urls[0] if proxy_urls else {}
         url             = first_url_item.get("url") or ""
-        url_params      = first_url_item.get("params") or {}  # 已由 get_proxy_urls 反序列化为 dict
+        url_params      = first_url_item.get("params") or {}  # already deserialized to dict by get_proxy_urls
 
         if current_on_demand == 1:
-            # 按需 → 立即：通过 mk_loader.add_stream_proxy（force=True）
+            # on-demand → immediate: via mk_loader.add_stream_proxy (force=True)
             if not url:
-                return {"code": -1, "msg": "代理无有效拉流地址"}
+                return {"code": -1, "msg": "proxy has no valid pull URL"}
 
             _, _, _, _, rc_tmp, ts_tmp, opt_tmp = _mk_plugin._build_proxy_call_args(proxy, url, url_params)
 
@@ -968,11 +968,11 @@ async def toggle_stream_proxy_mode(request: Request):
             )
 
             if toggle_result["err"]:
-                return {"code": -1, "msg": f"ZLM 添加失败: {toggle_result['err']}"}
+                return {"code": -1, "msg": f"ZLM add failed: {toggle_result['err']}"}
             db.update_pull_proxy(proxy_id, on_demand=0)
-            return {"code": 0, "msg": "已切换为立即模式", "data": {"on_demand": 0}}
+            return {"code": 0, "msg": "Switched to immediate mode", "data": {"on_demand": 0}}
         else:
-            # 立即 → 按需：调用 ZLM delStreamProxy 停止拉流
+            # immediate → on-demand: call ZLM delStreamProxy to stop the pull
             zlm_url = f"{get_zlm_base_url()}/index/api/delStreamProxy"
             try:
                 response = await client.post(
@@ -983,33 +983,33 @@ async def toggle_stream_proxy_mode(request: Request):
                 zlm_result = response.json()
                 if zlm_result.get("code") != 0:
                     mk_logger.log_warn(
-                        f"ZLM delStreamProxy 返回非 0: {zlm_result.get('msg')}，key={key}"
+                        f"ZLM delStreamProxy returned non-0: {zlm_result.get('msg')}, key={key}"
                     )
             except (httpx.ConnectError, httpx.ConnectTimeout, httpx.TimeoutException) as e:
-                mk_logger.log_warn(f"调用 ZLM delStreamProxy 连接失败（忽略，继续写库）: {e}，key={key}")
+                mk_logger.log_warn(f"Failed to connect when calling ZLM delStreamProxy (ignored, continue writing DB): {e}, key={key}")
             except Exception as e:
-                mk_logger.log_warn(f"调用 ZLM delStreamProxy 失败（忽略）: {e}，key={key}")
+                mk_logger.log_warn(f"Failed to call ZLM delStreamProxy (ignored): {e}, key={key}")
             db.update_pull_proxy(proxy_id, on_demand=1)
-            return {"code": 0, "msg": "已切换为按需模式", "data": {"on_demand": 1}}
+            return {"code": 0, "msg": "Switched to on-demand mode", "data": {"on_demand": 1}}
 
     except Exception as e:
-        mk_logger.log_warn(f"toggle_stream_proxy_mode | 切换拉流代理模式失败: {e}")
-        return {"code": -1, "msg": f"切换失败: {str(e)}"}
+        mk_logger.log_warn(f"toggle_stream_proxy_mode | Failed to toggle Pull Proxy mode: {e}")
+        return {"code": -1, "msg": f"Toggle failed: {str(e)}"}
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 插件管理接口
+# Plugins API
 # ══════════════════════════════════════════════════════════════════════
 import py_plugin as _py_plugin
 
 
 @app.get(
     "/index/pyapi/plugin/list",
-    tags=["插件管理"],
-    summary="获取已加载的插件列表",
+    tags=["Plugins"],
+    summary="Get list of loaded plugins",
 )
 async def plugin_list():
-    """返回当前内存中所有已加载插件的基本信息"""
+    """Return basic info of all plugins currently loaded in memory"""
     try:
         plugins = _py_plugin.registry.get_all()
         return {"code": 0, "data": plugins}
@@ -1020,21 +1020,21 @@ async def plugin_list():
 
 @app.post(
     "/index/pyapi/plugin/reload",
-    tags=["插件管理"],
-    summary="热加载插件目录",
+    tags=["Plugins"],
+    summary="Hot-reload the plugins directory",
 )
 async def plugin_reload():
     """
-    重新扫描 plugins/ 目录，热加载所有插件模块。
-    加载完成后自动将数据库中已有绑定重新同步到注册中心。
+    Re-scan the plugins/ directory and hot-reload all plugin modules.
+    After loading, automatically re-sync existing bindings from the database to the registry.
     """
     try:
         loaded = _py_plugin.registry.load()
-        # 重载完毕后，把数据库绑定重新同步到 registry
+        # After reload, re-sync the database bindings to the registry
         _sync_bindings_from_db()
         return {
             "code": 0,
-            "msg": f"热加载完成，共加载 {len(loaded)} 个插件",
+            "msg": f"Hot-reload complete, loaded {len(loaded)} plugins in total",
             "data": list(loaded.keys()),
         }
     except Exception as e:
@@ -1044,27 +1044,27 @@ async def plugin_reload():
 
 @app.get(
     "/index/pyapi/plugin/events",
-    tags=["插件管理"],
-    summary="获取所有支持的事件类型",
+    tags=["Plugins"],
+    summary="Get all supported event types",
 )
 async def plugin_events():
-    """返回系统支持绑定插件的所有 ZLM 事件类型"""
+    """Return all ZLM event types that the system supports binding plugins to"""
     return {"code": 0, "data": _py_plugin.SUPPORTED_EVENTS}
 
 
 @app.get(
     "/index/pyapi/plugin/bindings",
-    tags=["插件管理"],
-    summary="获取所有事件绑定配置",
+    tags=["Plugins"],
+    summary="Get all event binding configs",
 )
 async def plugin_get_bindings():
     """
-    返回所有支持事件的绑定配置。
-    格式：[{event_type, bindings:[{id, plugin_name, params, priority, enabled}], updated_at}, ...]
+    Return the binding configs of all supported events.
+    Format: [{event_type, bindings:[{id, plugin_name, params, priority, enabled}], updated_at}, ...]
     """
     try:
         db_rows = db.get_all_plugin_bindings()
-        # 构造 event_type → bindings 映射
+        # Build event_type → bindings mapping
         db_map = {r["event_type"]: r for r in db_rows}
         result = []
         for evt in _py_plugin.SUPPORTED_EVENTS:
@@ -1084,18 +1084,18 @@ async def plugin_get_bindings():
 
 @app.post(
     "/index/pyapi/plugin/bindings/save",
-    tags=["插件管理"],
-    summary="保存事件绑定配置（全量替换）",
+    tags=["Plugins"],
+    summary="Save event binding config (full replacement)",
 )
 async def plugin_save_binding(request: Request):
     """
-    全量保存某个事件类型的插件绑定配置，并立即生效到内存。
+    Save the full plugin binding config for an event type and apply it to memory immediately.
 
-    请求体（JSON）：
-    - event_type: str  — 事件类型，必须是 SUPPORTED_EVENTS 之一
-    - bindings: list   — 绑定列表（有序），每项格式：
+    Request body (JSON):
+    - event_type: str  — event type, must be one of SUPPORTED_EVENTS
+    - bindings: list   — binding list (ordered), each item format:
         {"plugin_name": str, "params": dict, "enabled": 0/1}
-    - enabled: int (0/1) — 整组启用状态，默认 1
+    - enabled: int (0/1) — whole-group enabled state, default 1
     """
     try:
         body = await request.body()
@@ -1106,16 +1106,16 @@ async def plugin_save_binding(request: Request):
         enabled    = int(data.get("enabled", 1))
 
         if event_type not in _py_plugin.SUPPORTED_EVENTS:
-            return {"code": -1, "msg": f"不支持的事件类型: {event_type}"}
+            return {"code": -1, "msg": f"Unsupported event type: {event_type}"}
         if not isinstance(bindings, list):
-            return {"code": -1, "msg": "bindings 必须是数组"}
+            return {"code": -1, "msg": "bindings must be an array"}
 
-        # 写库（全量替换）
+        # Write to DB (full replacement)
         ok = db.save_plugin_bindings_for_event(event_type, bindings, enabled)
         if not ok:
-            return {"code": -1, "msg": "数据库写入失败"}
+            return {"code": -1, "msg": "Database write failed"}
 
-        # 立即同步到内存 registry（重新从库中读取以获取最新 id）
+        # Immediately sync to the in-memory registry (re-read from DB to get the latest id)
         if enabled:
             saved = db.get_plugin_bindings_for_event(event_type)
             registry_bindings = [
@@ -1126,7 +1126,7 @@ async def plugin_save_binding(request: Request):
         else:
             _py_plugin.registry.set_bindings(event_type, [])
 
-        return {"code": 0, "msg": "保存成功"}
+        return {"code": 0, "msg": "Saved successfully"}
     except Exception as e:
         mk_logger.log_warn(f"plugin_save_binding error: {e}")
         return {"code": -1, "msg": str(e)}
@@ -1134,18 +1134,18 @@ async def plugin_save_binding(request: Request):
 
 @app.post(
     "/index/pyapi/plugin/bindings/update_params",
-    tags=["插件管理"],
-    summary="更新单个绑定的参数",
+    tags=["Plugins"],
+    summary="Update params of a single binding",
 )
 async def plugin_update_binding_params(request: Request):
     """
-    更新某个事件-插件绑定的自定义参数，不影响其他绑定。
+    Update the custom params of an event-plugin binding without affecting other bindings.
 
-    请求体（JSON）：
+    Request body (JSON):
     - event_type: str
     - plugin_name: str
-    - params: dict       — 自定义参数键值对
-    - enabled: int (0/1) — 可选，默认不改变
+    - params: dict       — custom param key-value pairs
+    - enabled: int (0/1) — optional, default unchanged
     """
     try:
         body = await request.body()
@@ -1156,24 +1156,24 @@ async def plugin_update_binding_params(request: Request):
         params      = data.get("params", {})
 
         if not event_type or not plugin_name:
-            return {"code": -1, "msg": "event_type 和 plugin_name 不能为空"}
+            return {"code": -1, "msg": "event_type and plugin_name cannot be empty"}
 
-        # 读出当前绑定，找到该项更新参数
+        # Read the current bindings, find this item and update its params
         current = db.get_plugin_bindings_for_event(event_type)
         item = next((x for x in current if x["plugin_name"] == plugin_name), None)
         if item is None:
-            return {"code": -1, "msg": f"绑定不存在: {event_type}/{plugin_name}"}
+            return {"code": -1, "msg": f"Binding does not exist: {event_type}/{plugin_name}"}
 
         enabled  = data.get("enabled", item["enabled"])
         priority = item["priority"]
 
         ok = db.upsert_plugin_binding_item(event_type, plugin_name, params, priority, enabled)
         if not ok:
-            return {"code": -1, "msg": "数据库更新失败"}
+            return {"code": -1, "msg": "Database update failed"}
 
-        # 同步内存
+        # Sync memory
         _sync_bindings_from_db_for_event(event_type)
-        return {"code": 0, "msg": "参数更新成功"}
+        return {"code": 0, "msg": "Params updated successfully"}
     except Exception as e:
         mk_logger.log_warn(f"plugin_update_binding_params error: {e}")
         return {"code": -1, "msg": str(e)}
@@ -1181,16 +1181,16 @@ async def plugin_update_binding_params(request: Request):
 
 @app.post(
     "/index/pyapi/plugin/bindings/delete",
-    tags=["插件管理"],
-    summary="删除事件绑定配置",
+    tags=["Plugins"],
+    summary="Delete event binding config",
 )
 async def plugin_delete_binding(request: Request):
     """
-    删除某个事件类型的全部绑定配置（或单条），并从内存中清除。
+    Delete all binding configs (or a single one) for an event type and clear them from memory.
 
-    请求体（JSON）：
-    - event_type: str   — 必填
-    - plugin_name: str  — 可选；若提供则只删该插件的绑定，否则删整个事件的绑定
+    Request body (JSON):
+    - event_type: str   — required
+    - plugin_name: str  — optional; if provided, only delete this plugin's binding, otherwise delete the whole event's bindings
     """
     try:
         body = await request.body()
@@ -1198,39 +1198,39 @@ async def plugin_delete_binding(request: Request):
         event_type  = data.get("event_type", "").strip()
         plugin_name = data.get("plugin_name", "").strip()
         if not event_type:
-            return {"code": -1, "msg": "event_type 不能为空"}
+            return {"code": -1, "msg": "event_type cannot be empty"}
         if plugin_name:
             db.delete_plugin_binding_item(event_type, plugin_name)
             _sync_bindings_from_db_for_event(event_type)
         else:
             db.delete_plugin_bindings_for_event(event_type)
             _py_plugin.registry.set_bindings(event_type, [])
-        return {"code": 0, "msg": "删除成功"}
+        return {"code": 0, "msg": "Deleted successfully"}
     except Exception as e:
         mk_logger.log_warn(f"plugin_delete_binding error: {e}")
         return {"code": -1, "msg": str(e)}
 
 
 def _sync_bindings_from_db():
-    """启动时 / 热加载后，把数据库中所有启用的绑定同步到内存 registry"""
+    """On startup / after hot-reload, sync all enabled bindings from the database to the in-memory registry"""
     try:
         rows = db.get_all_plugin_bindings()
         for row in rows:
             event_type = row["event_type"]
             bindings = row.get("bindings", [])
-            # 过滤出 enabled=1 的绑定项
+            # Filter out the bindings with enabled=1
             active = [
                 {"name": b["plugin_name"], "params": b.get("params") or {}, "id": b["id"]}
                 for b in bindings if b.get("enabled", 1)
             ]
             _py_plugin.registry.set_bindings(event_type, active)
-        mk_logger.log_info(f"[plugin] 同步绑定完成，共 {len(rows)} 条事件")
+        mk_logger.log_info(f"[plugin] Binding sync complete, {len(rows)} events in total")
     except Exception as e:
-        mk_logger.log_warn(f"[plugin] 同步绑定失败: {e}")
+        mk_logger.log_warn(f"[plugin] Binding sync failed: {e}")
 
 
 def _sync_bindings_from_db_for_event(event_type: str):
-    """更新单个事件类型的内存绑定"""
+    """Update the in-memory binding of a single event type"""
     try:
         bindings = db.get_plugin_bindings_for_event(event_type)
         active = [
@@ -1239,33 +1239,33 @@ def _sync_bindings_from_db_for_event(event_type: str):
         ]
         _py_plugin.registry.set_bindings(event_type, active)
     except Exception as e:
-        mk_logger.log_warn(f"[plugin] 同步单事件绑定失败 {event_type}: {e}")
+        mk_logger.log_warn(f"[plugin] Failed to sync single-event binding {event_type}: {e}")
 
 
 # ──────────────────────────────────────────────────────────────────────
-# 插件 URL 参数接口
+# Plugin URL params API
 # ──────────────────────────────────────────────────────────────────────
 
 @app.get(
     "/index/pyapi/plugin/url_params",
-    tags=["插件管理"],
-    summary="获取插件为指定流生成的 URL 附加参数",
+    tags=["Plugins"],
+    summary="Get URL extra params generated by plugins for a given stream",
 )
 async def get_plugin_url_params(
-    event_type: str = Query(..., description="事件类型，如 on_play、on_publish"),
-    app: str = Query(..., description="应用名"),
-    stream: str = Query(..., description="流ID"),
-    vhost: str = Query(default="__defaultVhost__", description="虚拟主机"),
+    event_type: str = Query(..., description="event type, e.g. on_play, on_publish"),
+    app: str = Query(..., description="application name"),
+    stream: str = Query(..., description="stream ID"),
+    vhost: str = Query(default="__defaultVhost__", description="virtual host"),
 ):
     """
-    收集指定事件（on_play / on_publish 等）下所有已启用插件为当前流生成的 URL 附加参数。
+    Collect the URL extra params generated for the current stream by all enabled plugins under the given event (on_play / on_publish, etc.).
 
-    返回 data 为 dict，前端直接将其中的所有键值对追加到对应 URL 的查询参数中即可。
-    若该事件下无任何插件绑定或插件均不提供参数，data 为空 dict {}。
+    The returned data is a dict; the frontend just appends all its key-value pairs to the query params of the corresponding URL.
+    If no plugin is bound under this event or no plugin provides params, data is an empty dict {}.
     """
     try:
         if event_type not in _py_plugin.SUPPORTED_EVENTS:
-            return {"code": -1, "msg": f"不支持的事件类型: {event_type}"}
+            return {"code": -1, "msg": f"Unsupported event type: {event_type}"}
         extra = _py_plugin.registry.collect_url_params(
             event_type,
             vhost=vhost,
@@ -1279,16 +1279,16 @@ async def get_plugin_url_params(
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 录像管理接口
+# Recordings API
 # ══════════════════════════════════════════════════════════════════════
 
 @app.get(
     "/index/pyapi/recordings/streams",
-    tags=["录像管理"],
-    summary="获取所有有录像记录的流列表",
+    tags=["Recordings"],
+    summary="Get list of all streams that have recordings",
 )
 async def get_recording_streams():
-    """返回数据库中所有有录像记录的 vhost/app/stream 去重列表"""
+    """Return a deduplicated list of vhost/app/stream that have recordings in the database"""
     try:
         return {"code": 0, "data": db.get_recording_streams()}
     except Exception as e:
@@ -1298,18 +1298,18 @@ async def get_recording_streams():
 
 @app.get(
     "/index/pyapi/recordings",
-    tags=["录像管理"],
-    summary="查询录像列表",
+    tags=["Recordings"],
+    summary="Query recordings list",
 )
 async def get_recordings(
-    app: str = Query(default="", description="应用名，空则不过滤"),
-    stream: str = Query(default="", description="流ID，空则不过滤"),
-    vhost: str = Query(default="", description="虚拟主机，空则不过滤"),
-    date: str = Query(default="", description="日期 YYYY-MM-DD，空则不过滤"),
-    start_ts: int = Query(default=0, description="起始时间戳（秒），0则不过滤"),
-    end_ts: int = Query(default=0, description="结束时间戳（秒），0则不过滤"),
-    limit: int = Query(default=200, description="最多返回条数"),
-    offset: int = Query(default=0, description="分页偏移"),
+    app: str = Query(default="", description="application name, empty means no filter"),
+    stream: str = Query(default="", description="stream ID, empty means no filter"),
+    vhost: str = Query(default="", description="virtual host, empty means no filter"),
+    date: str = Query(default="", description="date YYYY-MM-DD, empty means no filter"),
+    start_ts: int = Query(default=0, description="start timestamp (sec), 0 means no filter"),
+    end_ts: int = Query(default=0, description="end timestamp (sec), 0 means no filter"),
+    limit: int = Query(default=200, description="max number of items to return"),
+    offset: int = Query(default=0, description="pagination offset"),
 ):
     try:
         rows = db.get_recordings(app=app, stream=stream, vhost=vhost,
@@ -1323,17 +1323,17 @@ async def get_recordings(
 
 @app.get(
     "/index/pyapi/recordings/dates",
-    tags=["录像管理"],
-    summary="查询某月内有录像的日期列表",
+    tags=["Recordings"],
+    summary="Query the list of dates that have recordings in a given month",
 )
 async def get_recording_dates(
-    year:   int = Query(..., description="年份，如 2026"),
-    month:  int = Query(..., description="月份，1-12"),
-    app:    str = Query(default="", description="应用名，空则不过滤"),
-    stream: str = Query(default="", description="流ID，空则不过滤"),
-    vhost:  str = Query(default="", description="虚拟主机，空则不过滤"),
+    year:   int = Query(..., description="year, e.g. 2026"),
+    month:  int = Query(..., description="month, 1-12"),
+    app:    str = Query(default="", description="application name, empty means no filter"),
+    stream: str = Query(default="", description="stream ID, empty means no filter"),
+    vhost:  str = Query(default="", description="virtual host, empty means no filter"),
 ):
-    """返回指定月份内有录像记录的日期列表，格式 ['YYYY-MM-DD', ...]"""
+    """Return the list of dates that have recordings in the given month, format ['YYYY-MM-DD', ...]"""
     try:
         dates = db.get_recording_dates(year=year, month=month,
                                        app=app, stream=stream, vhost=vhost)
@@ -1345,8 +1345,8 @@ async def get_recording_dates(
 
 @app.post(
     "/index/pyapi/recordings/delete",
-    tags=["录像管理"],
-    summary="删除录像记录（仅删数据库记录，不删文件）",
+    tags=["Recordings"],
+    summary="Delete recording records (only DB records, not files)",
 )
 async def delete_recording(request: Request):
     try:
@@ -1354,9 +1354,9 @@ async def delete_recording(request: Request):
         data = json.loads(body.decode("utf-8")) if body else {}
         rec_id = data.get("id")
         if not rec_id:
-            return {"code": -1, "msg": "id 不能为空"}
+            return {"code": -1, "msg": "id cannot be empty"}
         db.delete_recording(int(rec_id))
-        return {"code": 0, "msg": "删除成功"}
+        return {"code": 0, "msg": "Deleted successfully"}
     except Exception as e:
         mk_logger.log_warn(f"delete_recording error: {e}")
         return {"code": -1, "msg": str(e)}
@@ -1364,8 +1364,8 @@ async def delete_recording(request: Request):
 
 @app.post(
     "/index/pyapi/recordings/delete_stream",
-    tags=["录像管理"],
-    summary="删除指定流的全部录像记录及文件",
+    tags=["Recordings"],
+    summary="Delete all recording records and files of a given stream",
 )
 async def delete_recordings_by_stream(request: Request):
     try:
@@ -1375,9 +1375,9 @@ async def delete_recordings_by_stream(request: Request):
         app    = data.get("app",    "")
         stream = data.get("stream", "")
         if not app or not stream:
-            return {"code": -1, "msg": "app 和 stream 不能为空"}
+            return {"code": -1, "msg": "app and stream cannot be empty"}
         count = db.delete_recordings_by_stream(vhost, app, stream)
-        return {"code": 0, "msg": f"已删除 {count} 条录像"}
+        return {"code": 0, "msg": f"Deleted {count} recordings"}
     except Exception as e:
         mk_logger.log_warn(f"delete_recordings_by_stream error: {e}")
         return {"code": -1, "msg": str(e)}
@@ -1385,8 +1385,8 @@ async def delete_recordings_by_stream(request: Request):
 
 @app.post(
     "/index/pyapi/recordings/delete_day",
-    tags=["录像管理"],
-    summary="删除指定流某天的全部录像记录及文件",
+    tags=["Recordings"],
+    summary="Delete all recording records and files of a given stream on a given day",
 )
 async def delete_recordings_by_day(request: Request):
     try:
@@ -1397,9 +1397,9 @@ async def delete_recordings_by_day(request: Request):
         stream = data.get("stream", "")
         date   = data.get("date",   "")
         if not app or not stream or not date:
-            return {"code": -1, "msg": "app、stream 和 date 不能为空"}
+            return {"code": -1, "msg": "app, stream and date cannot be empty"}
         count = db.delete_recordings_by_stream_date(vhost, app, stream, date)
-        return {"code": 0, "msg": f"已删除 {count} 条录像"}
+        return {"code": 0, "msg": f"Deleted {count} recordings"}
     except Exception as e:
         mk_logger.log_warn(f"delete_recordings_by_day error: {e}")
         return {"code": -1, "msg": str(e)}
@@ -1407,25 +1407,25 @@ async def delete_recordings_by_day(request: Request):
 
 @app.get(
     "/index/pyapi/recordings/file",
-    tags=["录像管理"],
-    summary="重定向到 ZLM downloadFile 接口播放或下载录像",
+    tags=["Recordings"],
+    summary="Redirect to the ZLM downloadFile API to play or download a recording",
 )
 async def serve_recording_file(
-    id: int = Query(..., description="录像记录 ID"),
-    disposition: str = Query(default="inline", description="inline=播放, attachment=下载"),
+    id: int = Query(..., description="recording record ID"),
+    disposition: str = Query(default="inline", description="inline=play, attachment=download"),
 ):
     """
-    查库获取录像 file_path，重定向到 ZLM 内置接口 /index/api/downloadFile。
-    disposition=inline  → 浏览器内联播放
-    disposition=attachment → 触发下载，附带 save_name
+    Query the DB for the recording file_path, redirect to ZLM's built-in API /index/api/downloadFile.
+    disposition=inline  → inline playback in the browser
+    disposition=attachment → trigger download, with save_name
     """
     try:
         row = db.get_recording_by_id(int(id))
         if not row:
-            raise HTTPException(status_code=404, detail="录像记录不存在")
+            raise HTTPException(status_code=404, detail="recording record does not exist")
         file_path = row.get("file_path", "")
         if not file_path:
-            raise HTTPException(status_code=404, detail="录像文件路径为空")
+            raise HTTPException(status_code=404, detail="recording file path is empty")
         encoded_path = urllib.parse.quote(file_path, safe='')
         if disposition == "attachment":
             file_name = row.get("file_name") or os.path.basename(file_path)
@@ -1446,23 +1446,23 @@ async def serve_recording_file(
 
 @app.get(
     "/index/pyapi/recordings/day",
-    tags=["录像管理"],
-    summary="获取指定流某天全部录像的有序列表（用于前端顺序播放）",
+    tags=["Recordings"],
+    summary="Get the ordered list of all recordings of a given stream on a given day (for sequential playback on the frontend)",
 )
 async def get_day_recordings(
-    vhost:  str = Query(default="", description="虚拟主机"),
-    app:    str = Query(...,        description="应用名"),
-    stream: str = Query(...,        description="流ID"),
-    date:   str = Query(...,        description="日期 YYYY-MM-DD"),
+    vhost:  str = Query(default="", description="virtual host"),
+    app:    str = Query(...,        description="application name"),
+    stream: str = Query(...,        description="stream ID"),
+    date:   str = Query(...,        description="date YYYY-MM-DD"),
 ):
-    """返回当天所有录像按 start_time 升序排列的列表，前端用于逐条顺序播放。"""
+    """Return the list of all recordings of that day sorted by start_time ascending, used by the frontend for sequential playback."""
     try:
         rows = db.get_recordings(vhost=vhost, app=app, stream=stream,
                                  date=date, limit=10000)
         rows.sort(key=lambda r: r.get("start_time") or 0)
         rows = [r for r in rows if r.get("file_path")]
         if not rows:
-            return {"code": 1, "msg": "该流当天暂无录像", "data": []}
+            return {"code": 1, "msg": "No recordings for this stream on that day", "data": []}
         return {"code": 0, "data": rows}
     except Exception as e:
         mk_logger.log_warn(f"get_day_recordings error: {e}")
