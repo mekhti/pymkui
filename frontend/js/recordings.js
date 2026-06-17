@@ -1,16 +1,16 @@
 /**
- * 录像管理页面逻辑
- * 依赖：api.js（apiGet/apiPost）
+ * Recordings page logic
+ * Depends on: api.js(apiGet/apiPost)
  */
 
 let _recSelectedStream = null;   // { vhost, app, stream }
 let _recAllStreams      = [];
-let _recCurrentList    = [];     // 当前页录像数组
-let _recSelectedDate   = '';     // 当前选中日期 YYYY-MM-DD
+let _recCurrentList    = [];     // Current-page recordings array
+let _recSelectedDate   = '';     // Currently selected date YYYY-MM-DD
 
-// ── 页面入口 ──────────────────────────────────────────────────────────
+// ── Page entry ──────────────────────────────────────────────────────────
 async function loadRecordingsPage() {
-    // 默认选今天
+    // Default to today
     const today = new Date().toISOString().slice(0, 10);
     if (!_recSelectedDate) {
         _recSelectedDate = today;
@@ -35,7 +35,7 @@ function clearRecTimeRange() {
     loadRecordingList();
 }
 
-// ── 左侧流列表 ────────────────────────────────────────────────────────
+// ── Left-side stream list ────────────────────────────────────────────────────────
 async function loadRecStreamList() {
     try {
         const res = await apiGet('/index/pyapi/recordings/streams');
@@ -49,7 +49,7 @@ async function loadRecStreamList() {
 function renderRecStreamList(list) {
     const ul = document.getElementById('recStreamList');
     if (!list.length) {
-        ul.innerHTML = '<li class="text-white/30 text-xs text-center py-4">暂无录像记录</li>';
+        ul.innerHTML = '<li class="text-white/30 text-xs text-center py-4">No recordings</li>';
         return;
     }
     ul.innerHTML = list.map(s => {
@@ -67,7 +67,7 @@ function renderRecStreamList(list) {
                 <div class="text-[10px] text-white/30 break-all leading-tight mt-0.5">${escHtmlRec(s.vhost)}</div>
             </button>
             <button onclick="deleteStreamAllRecordings('${escRec(s.vhost)}','${escRec(s.app)}','${escRec(s.stream)}')"
-                title="删除该流全部录像"
+                title="Delete all recordings of this stream"
                 class="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-red-400/70 hover:text-red-400 p-1 rounded">
                 <i class="fa fa-trash text-xs"></i>
             </button>
@@ -90,23 +90,23 @@ function filterRecStreamList() {
 
 function selectRecStream(vhost, app, stream) {
     _recSelectedStream = { vhost, app, stream };
-    filterRecStreamList();   // 保留搜索词，刷新高亮
+    filterRecStreamList();   // Keep search term, refresh highlight
     loadRecordingList();
 }
 
-// ── 从外部跳转到录像管理并定位到指定流 ──────────────────────────────
+// ── Jump in from outside to Recordings and locate the given stream ──────────────────────────────
 function navigateToRecordings(vhost, app, stream) {
-    // 关闭流信息弹窗（如果存在）
+    // Close stream info popup (if any)
     document.querySelectorAll('[data-modal="streams"]').forEach(m => m.remove());
 
-    // 跳转到录像管理页
+    // Jump to the Recordings page
     if (typeof addTab === 'function') {
-        addTab('recordings', '录像管理', 'fa-film');
+        addTab('recordings', 'Recordings', 'fa-film');
     }
 
-    // 等页面加载完后设置筛选条件
+    // Set filters after the page finishes loading
     const _apply = () => {
-        // 设置搜索框
+        // Set search box
         const vh = document.getElementById('recSearchVhost');
         const ap = document.getElementById('recSearchApp');
         const st = document.getElementById('recSearchStream');
@@ -118,15 +118,15 @@ function navigateToRecordings(vhost, app, stream) {
         if (ap) ap.value = app   || '';
         if (st) st.value = stream || '';
 
-        // 设置今天日期
+        // Set today as date
         const today = new Date().toISOString().slice(0, 10);
         _recSelectedDate = today;
         _updateRecDateBtn(today);
         _fillDayTimeRange(today);
 
-        // 过滤流列表并选中该流
+        // Filter the stream list and select this stream
         filterRecStreamList();
-        // 稍等流列表加载完毕再选中
+        // Wait for the stream list to load, then select
         const _pick = () => {
             const found = _recAllStreams.find(
                 s => s.vhost === vhost && s.app === app && s.stream === stream
@@ -142,27 +142,27 @@ function navigateToRecordings(vhost, app, stream) {
     setTimeout(_apply, 200);
 }
 
-// ── 录像列表 ──────────────────────────────────────────────────────────
+// ── Recordings list ──────────────────────────────────────────────────────────
 async function loadRecordingList() {
     if (!_recSelectedStream) return;
     const { vhost, app, stream } = _recSelectedStream;
     const date     = _recSelectedDate || '';
     const startVal = document.getElementById('recStartTime')?.value || '';
     const endVal   = document.getElementById('recEndTime')?.value   || '';
-    // time 类型只有 HH:MM:SS，需要拼上日期才能转时间戳；无日期则取今天
+    // time  type only has  HH:MM:SS，a date must be appended to convert to a timestamp; if no date, use today
     const baseDate = date || new Date().toISOString().slice(0, 10);
     const startTs  = startVal ? Math.floor(new Date(`${baseDate}T${startVal}`).getTime() / 1000) : 0;
     const endTs    = endVal   ? Math.floor(new Date(`${baseDate}T${endVal}`).getTime()   / 1000) : 0;
 
     try {
-        // ① 时间轴：只按日期查全天，不受起止时间影响（不限条数）
+        // ① Timeline: query the whole day by date only, unaffected by start/end time (no count limit)
         const timelineParams = new URLSearchParams({ vhost, app, stream, limit: 10000 });
         if (date) timelineParams.set('date', date);
         const tlRes = await apiGet('/index/pyapi/recordings?' + timelineParams.toString());
         const allDayList = (tlRes.code === 0 ? tlRes.data : []) || [];
         renderTimeline(allDayList, date);
 
-        // ② 文件列表：在全天数据基础上叠加起止时间过滤（前端直接过滤，避免多一次请求）
+        // ② File list: apply start/end-time filter on top of the full-day data (filtered on the front end to avoid an extra request)
         _recCurrentList = (startTs || endTs)
             ? allDayList.filter(r => {
                 const ts = r.start_time || 0;
@@ -174,7 +174,7 @@ async function loadRecordingList() {
 
         renderRecTable(_recCurrentList);
         document.getElementById('recStatText').textContent =
-            `共 ${_recCurrentList.length} 条`;
+            `Total: ${_recCurrentList.length}`;
     } catch (e) {
         console.error('loadRecordingList:', e);
     }
@@ -183,7 +183,7 @@ async function loadRecordingList() {
 function renderRecTable(list) {
     const tbody = document.getElementById('recTableBody');
     if (!list.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-white/30 py-10">暂无录像</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-white/30 py-10">No recordings</td></tr>';
         return;
     }
     tbody.innerHTML = list.map(r => {
@@ -199,40 +199,40 @@ function renderRecTable(list) {
             <td class="py-2.5 px-4 text-sm text-white/60">${size}</td>
             <td class="py-2.5 px-4">
                 <button onclick="playRecording(${r.id})"
-                    class="text-primary/80 hover:text-primary text-xs transition mr-3" title="播放">
-                    <i class="fa fa-play mr-1"></i>播放
+                    class="text-primary/80 hover:text-primary text-xs transition mr-3" title="Play">
+                    <i class="fa fa-play mr-1"></i>Play
                 </button>
                 <a href="/index/pyapi/recordings/file?id=${r.id}&disposition=attachment"
                     download="${escHtmlRec(r.file_name || 'recording.mp4')}"
-                    class="text-green-400/70 hover:text-green-400 text-xs transition mr-3" title="下载">
-                    <i class="fa fa-download mr-1"></i>下载
+                    class="text-green-400/70 hover:text-green-400 text-xs transition mr-3" title="Download">
+                    <i class="fa fa-download mr-1"></i>Download
                 </a>
                 <button onclick="deleteRecording(${r.id})"
-                    class="text-red-400/70 hover:text-red-400 text-xs transition" title="删除记录">
-                    <i class="fa fa-trash mr-1"></i>删除
+                    class="text-red-400/70 hover:text-red-400 text-xs transition" title="Delete record">
+                    <i class="fa fa-trash mr-1"></i>Delete
                 </button>
             </td>
         </tr>`;
     }).join('');
 }
 
-// ── 时间轴渲染 ────────────────────────────────────────────────────────
+// ── Timeline rendering ────────────────────────────────────────────────────────
 function renderTimeline(list, date) {
     const track   = document.getElementById('timelineTrack');
     const tipEl   = document.getElementById('timelineTip');
     const dateEl  = document.getElementById('timelineDate');
     track.innerHTML = '';
 
-    dateEl.textContent = date || '全部日期';
+    dateEl.textContent = date || 'All dates';
 
     if (!list.length) return;
 
-    // 确定基准日期的 00:00:00 时间戳（秒）
+    // Determine the base date 00:00:00  timestamp (sec)
     let baseTs;
     if (date) {
         baseTs = Math.floor(new Date(date + 'T00:00:00').getTime() / 1000);
     } else {
-        // 无日期筛选：取最早录像当天 00:00:00
+        // No date filter: use the day of the earliest recording 00:00:00
         const earliest = Math.min(...list.map(r => r.start_time || 0).filter(Boolean));
         const d = new Date(earliest * 1000);
         d.setHours(0, 0, 0, 0);
@@ -254,7 +254,7 @@ function renderTimeline(list, date) {
         bar.style.width = Math.max(width, 0.3) + '%';
         bar.title = r.file_name || '';
 
-        // 鼠标悬停 Tooltip
+        // Mouse hover  Tooltip
         bar.addEventListener('mousemove', ev => {
             const rect = track.getBoundingClientRect();
             tipEl.classList.remove('hidden');
@@ -264,7 +264,7 @@ function renderTimeline(list, date) {
         });
         bar.addEventListener('mouseleave', () => tipEl.classList.add('hidden'));
 
-        // 点击高亮对应表格行
+        // Click to highlight the matching table row
         bar.addEventListener('click', () => {
             scrollToRecordRow(r.id);
         });
@@ -272,17 +272,17 @@ function renderTimeline(list, date) {
         track.appendChild(bar);
     });
 
-    // ── 拖拽框选时间段 ────────────────────────────────────────────────
+    // ── Drag to select a time range ────────────────────────────────────────────────
     _initTimelineDrag(track, baseTs, tipEl);
 }
 
-// 拖拽框选：长按 200ms 后进入框选模式，松开后更新起止时间并重新查询
+// Drag-select: long-press  200ms to enter selection mode; on release, update start/end time and re-query
 function _initTimelineDrag(track, baseTs, tipEl) {
     const DAY_SEC = 86400;
     let dragState = null;   // { startX, selEl }
     let holdTimer = null;
 
-    // 选区元素
+    // Selection element
     let selEl = track.querySelector('.rec-sel-box');
     if (!selEl) {
         selEl = document.createElement('div');
@@ -290,10 +290,10 @@ function _initTimelineDrag(track, baseTs, tipEl) {
         track.appendChild(selEl);
     }
 
-    // 清除旧的监听（通过替换节点）
+    // Clear old listeners (by replacing the node)
     const newTrack = track.cloneNode(true);
     track.parentNode.replaceChild(newTrack, track);
-    // 重新拿新节点
+    // Re-grab the new node
     const t = newTrack;
     const s = t.querySelector('.rec-sel-box');
 
@@ -328,7 +328,7 @@ function _initTimelineDrag(track, baseTs, tipEl) {
         s.style.left  = (left  / w * 100) + '%';
         s.style.width = ((right - left) / w * 100) + '%';
 
-        // 实时显示时间提示
+        // Show time hint in real time
         const tsL = pct2ts(left  / w * 100);
         const tsR = pct2ts(right / w * 100);
         const fmt = ts => new Date(ts * 1000).toLocaleTimeString('zh-CN', { hour12: false });
@@ -353,7 +353,7 @@ function _initTimelineDrag(track, baseTs, tipEl) {
 
         const pL = Math.min(x0, x1) / rect.width * 100;
         const pR = Math.max(x0, x1) / rect.width * 100;
-        if (pR - pL < 0.5) return;  // 选区太小忽略
+        if (pR - pL < 0.5) return;  // Selection too small, ignored
 
         const tsStart = pct2ts(pL);
         const tsEnd   = pct2ts(pR);
@@ -367,7 +367,7 @@ function _initTimelineDrag(track, baseTs, tipEl) {
     });
 
     t.addEventListener('mouseleave', () => {
-        // 鼠标离开轨道时只取消长按计时，拖拽中不中断（由 document mouseup 处理）
+        // On mouse leave, only cancel the long-press timer; do not interrupt during drag (handled by document mouseup)
         clearTimeout(holdTimer);
         holdTimer = null;
         if (!dragState) tipEl.classList.add('hidden');
@@ -385,17 +385,17 @@ function scrollToRecordRow(id) {
     }
 }
 
-// ── 删除录像记录 ──────────────────────────────────────────────────────
+// ── Delete recording record ──────────────────────────────────────────────────────
 async function deleteRecording(id) {
-    showConfirmModal('删除录像', '确定删除此录像记录？（同时删除文件）', async () => {
+    showConfirmModal('Delete recording', 'Delete this recording? (the file will also be deleted)', async () => {
         try {
             const res = await apiPost('/index/pyapi/recordings/delete', { id });
             if (res.code === 0) {
-                showToast('已删除', 'success');
+                showToast('Deleted', 'success');
                 await loadRecordingList();
                 await loadRecStreamList();
             } else {
-                showToast(res.msg || '删除失败', 'error');
+                showToast(res.msg || 'Delete failed', 'error');
             }
         } catch (e) {
             showToast(e.message, 'error');
@@ -405,26 +405,26 @@ async function deleteRecording(id) {
 
 async function deleteStreamAllRecordings(vhost, app, stream) {
     showConfirmModal(
-        '删除流全部录像',
-        `确定删除流 <span class="text-primary font-mono">${escHtmlRec(app)}/${escHtmlRec(stream)}</span> 的全部录像记录及文件？<br><span class="text-red-400 text-xs">此操作不可恢复！</span>`,
+        'Delete all recordings of stream',
+        `Are you sure you want to delete all recordings and files of stream <span class="text-primary font-mono">${escHtmlRec(app)}/${escHtmlRec(stream)}</span> ?<br><span class="text-red-400 text-xs">This action cannot be undone!</span>`,
         async () => {
             try {
                 const res = await apiPost('/index/pyapi/recordings/delete_stream', { vhost, app, stream });
                 if (res.code === 0) {
-                    showToast(res.msg || '删除成功', 'success');
+                    showToast(res.msg || 'Deleted', 'success');
                     if (_recSelectedStream &&
                         _recSelectedStream.vhost === vhost &&
                         _recSelectedStream.app === app &&
                         _recSelectedStream.stream === stream) {
                         _recSelectedStream = null;
                         document.getElementById('recTableBody').innerHTML =
-                            '<tr><td colspan="5" class="text-center text-white/30 py-10">← 请先选择左侧流</td></tr>';
+                            '<tr><td colspan="5" class="text-center text-white/30 py-10">← Select a stream on the left first</td></tr>';
                         document.getElementById('timelineTrack').innerHTML = '';
                         document.getElementById('timelineDate').textContent = '';
                     }
                     await loadRecStreamList();
                 } else {
-                    showToast(res.msg || '删除失败', 'error');
+                    showToast(res.msg || 'Delete failed', 'error');
                 }
             } catch (e) {
                 showToast(e.message, 'error');
@@ -434,22 +434,22 @@ async function deleteStreamAllRecordings(vhost, app, stream) {
 }
 
 async function deleteDayRecordings() {
-    if (!_recSelectedStream) { showToast('请先选择左侧流', 'warning'); return; }
+    if (!_recSelectedStream) { showToast('Select a stream on the left first', 'warning'); return; }
     const date = _recSelectedDate;
-    if (!date) { showToast('请先选择日期', 'warning'); return; }
+    if (!date) { showToast('Select a date first', 'warning'); return; }
     const { vhost, app, stream } = _recSelectedStream;
     showConfirmModal(
-        '删除全天录像',
-        `确定删除 <span class="text-primary font-mono">${escHtmlRec(app)}/${escHtmlRec(stream)}</span> 在 <span class="text-yellow-400">${escHtmlRec(date)}</span> 的全部录像记录及文件？<br><span class="text-red-400 text-xs">此操作不可恢复！</span>`,
+        'Delete the whole-day recordings',
+        `Are you sure you want to delete <span class="text-primary font-mono">${escHtmlRec(app)}/${escHtmlRec(stream)}</span> on <span class="text-yellow-400">${escHtmlRec(date)}</span> ?<br><span class="text-red-400 text-xs">This action cannot be undone!</span>`,
         async () => {
             try {
                 const res = await apiPost('/index/pyapi/recordings/delete_day', { vhost, app, stream, date });
                 if (res.code === 0) {
-                    showToast(res.msg || '删除成功', 'success');
+                    showToast(res.msg || 'Deleted', 'success');
                     await loadRecordingList();
                     await loadRecStreamList();
                 } else {
-                    showToast(res.msg || '删除失败', 'error');
+                    showToast(res.msg || 'Delete failed', 'error');
                 }
             } catch (e) {
                 showToast(e.message, 'error');
@@ -458,12 +458,12 @@ async function deleteDayRecordings() {
     );
 }
 
-// ── 工具函数 ──────────────────────────────────────────────────────────
+// ── Utility functions ──────────────────────────────────────────────────────────
 function fmtDuration(sec) {
     sec = Math.round(sec);
-    if (sec < 60)  return sec + ' 秒';
-    if (sec < 3600) return Math.floor(sec / 60) + ' 分 ' + (sec % 60) + ' 秒';
-    return Math.floor(sec / 3600) + ' 时 ' + Math.floor((sec % 3600) / 60) + ' 分';
+    if (sec < 60)  return sec + ' sec';
+    if (sec < 3600) return Math.floor(sec / 60) + ' min ' + (sec % 60) + ' sec';
+    return Math.floor(sec / 3600) + ' h ' + Math.floor((sec % 3600) / 60) + ' min';
 }
 function fmtSize(bytes) {
     if (bytes < 1024)       return bytes + ' B';
@@ -479,15 +479,15 @@ function escRec(s) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// 自定义日历组件
+// Custom calendar component
 // ══════════════════════════════════════════════════════════════════════
 let _calYear  = 0;
 let _calMonth = 0;   // 1-12
-let _calDates = new Set();   // 当月有录像的日期 Set<'YYYY-MM-DD'>
+let _calDates = new Set();   // Days with recordings this month Set<'YYYY-MM-DD'>
 
 function _updateRecDateBtn(date) {
     const btn = document.getElementById('recDateBtnText');
-    if (btn) btn.textContent = date || '选择日期';
+    if (btn) btn.textContent = date || 'Select date';
 }
 
 function toggleRecCalendar() {
@@ -495,14 +495,14 @@ function toggleRecCalendar() {
     if (!pop) return;
     const isHidden = pop.classList.contains('hidden');
     if (isHidden) {
-        // 打开：以当前选中日期或今天为基准
+        // Open: base on the currently selected date or today
         const base = _recSelectedDate || new Date().toISOString().slice(0, 10);
         const [y, m] = base.split('-').map(Number);
         _calYear  = y;
         _calMonth = m;
         _renderCalendar();
         pop.classList.remove('hidden');
-        // 点击外部关闭
+        // Click outside to close
         setTimeout(() => {
             document.addEventListener('click', _closeCalOutside, { once: true });
         }, 0);
@@ -517,7 +517,7 @@ function _closeCalOutside(ev) {
     if (pop && !pop.contains(ev.target) && btn && !btn.contains(ev.target)) {
         pop.classList.add('hidden');
     } else {
-        // 点在内部，继续监听
+        // Click inside, keep listening
         document.addEventListener('click', _closeCalOutside, { once: true });
     }
 }
@@ -534,10 +534,10 @@ async function _renderCalendar() {
     const grid  = document.getElementById('recCalGrid');
     if (!label || !grid) return;
 
-    label.textContent = `${_calYear} 年 ${_calMonth} 月`;
-    grid.innerHTML = '<div class="col-span-7 text-center text-white/30 text-xs py-2">加载中…</div>';
+    label.textContent = `${_calYear}-${_calMonth}`;
+    grid.innerHTML = '<div class="col-span-7 text-center text-white/30 text-xs py-2">Loading…</div>';
 
-    // 查询当月有录像的日期（带当前选中的流过滤）
+    // Query days with recordings this month (filtered by the selected stream)
     try {
         const params = new URLSearchParams({ year: _calYear, month: _calMonth });
         if (_recSelectedStream) {
@@ -558,12 +558,12 @@ function _buildCalGrid() {
     const grid = document.getElementById('recCalGrid');
     if (!grid) return;
 
-    const firstDay = new Date(_calYear, _calMonth - 1, 1).getDay(); // 0=日
+    const firstDay = new Date(_calYear, _calMonth - 1, 1).getDay(); // 0=Sun
     const daysInMonth = new Date(_calYear, _calMonth, 0).getDate();
     const today = new Date().toISOString().slice(0, 10);
 
     let html = '';
-    // 空格补齐
+    // Pad with blanks
     for (let i = 0; i < firstDay; i++) {
         html += '<div></div>';
     }
@@ -595,9 +595,9 @@ function selectRecDate(dateStr) {
     _recSelectedDate = dateStr;
     _updateRecDateBtn(dateStr);
     _fillDayTimeRange(dateStr);
-    // 刷新日历格子高亮
+    // Refresh calendar cell highlights
     _buildCalGrid();
-    // 关闭弹窗
+    // Close popup
     document.getElementById('recCalendarPop')?.classList.add('hidden');
     loadRecordingList();
 }
@@ -609,16 +609,16 @@ function clearRecDate() {
     loadRecordingList();
 }
 
-// ── 全天播放状态 ──────────────────────────────────────────────────────
+// ── Full-day playback state ──────────────────────────────────────────────────────
 const _dp = {
-    list: [],       // 录像列表
-    offsets: [],    // 各段累积起始秒 [0, dur0, dur0+dur1, ...]
-    total: 0,       // 总时长（秒）
-    idx: 0,         // 当前段
-    label: '',      // 标题标识
+    list: [],       // Recordings list
+    offsets: [],    // Cumulative start seconds of each segment [0, dur0, dur0+dur1, ...]
+    total: 0,       // Total duration (sec)
+    idx: 0,         // Current segment
+    label: '',      // Title id
     raf: null,      // requestAnimationFrame id
-    seekingTo: null,// 拖拽/seek 中的目标全局秒（用于 tick 显示正确位置）
-    speed: 1,       // 播放倍速
+    seekingTo: null,// Drag/seek  target global seconds (for  tick  showing the correct position)
+    speed: 1,       // Playback speed
 };
 
 function _dpUrl(id) { return `/index/pyapi/recordings/file?id=${id}&disposition=inline`; }
@@ -631,7 +631,7 @@ function _dpFmtTime(s) {
         : `${m}:${String(sec).padStart(2,'0')}`;
 }
 
-// 根据全局秒数找到对应段 idx 和段内偏移
+// Find the segment for a global-seconds value idx  and the in-segment offset
 function _dpSegAt(globalSec) {
     const offsets = _dp.offsets;
     let idx = 0;
@@ -642,11 +642,11 @@ function _dpSegAt(globalSec) {
     return { idx, offset };
 }
 
-// 更新自定义进度条
+// Update custom progress bar
 function _dpTick() {
     const videoA = document.getElementById('_dpVideoA');
     if (!videoA) return;
-    // seeking 中用手动记录的值，不读 currentTime（load 中 currentTime 可能是旧值）
+    // seeking , use the manually recorded value, do not read  currentTime(load in currentTime  may be stale)
     const globalSec = _dp.seekingTo != null
         ? _dp.seekingTo
         : _dp.offsets[_dp.idx] + (isNaN(videoA.currentTime) ? 0 : videoA.currentTime);
@@ -662,11 +662,11 @@ function _dpTick() {
     _dp.raf = requestAnimationFrame(_dpTick);
 }
 
-// 切换到指定段，从 offsetSec 开始播放
+// Switch to the given segment, starting at  offsetSec  play
 function _dpGoTo(idx, offsetSec) {
     if (idx >= _dp.list.length) {
         const titleEl = document.getElementById('_dpTitle');
-        if (titleEl) titleEl.textContent = _dp.label + ' · 播放完毕';
+        if (titleEl) titleEl.textContent = _dp.label + ' · Playback finished';
         _dp.seekingTo = null;
         return;
     }
@@ -680,9 +680,9 @@ function _dpGoTo(idx, offsetSec) {
     const videoA = document.getElementById('_dpVideoA');
     const videoB = document.getElementById('_dpVideoB');
 
-    videoA.onended = null; // 先解绑，防止 load 触发旧 ended 回调
+    videoA.onended = null; // unbind first, to prevent  load  triggering the old  ended  callback
 
-    // 记录目标全局时间（用于 tick 显示正确位置）
+    // Record target global time (for  tick  showing the correct position)
     _dp.seekingTo = _dp.offsets[idx] + offsetSec;
 
     videoA.src = url;
@@ -692,11 +692,11 @@ function _dpGoTo(idx, offsetSec) {
         videoA.removeEventListener('loadedmetadata', onMeta);
         if (offsetSec > 0) videoA.currentTime = offsetSec;
         if (_dp.speed && _dp.speed !== 1) videoA.playbackRate = _dp.speed;
-        _dp.seekingTo = null; // 可以开始正常 tick 了
+        _dp.seekingTo = null; // can start normal  tick  now
         videoA.play().catch(() => {});
     }, { once: true });
 
-    // 预加载下一段
+    // Preload next segment
     if (videoB && idx + 1 < _dp.list.length) {
         videoB.src = _dpUrl(_dp.list[idx + 1].id);
         videoB.preload = 'auto';
@@ -705,14 +705,14 @@ function _dpGoTo(idx, offsetSec) {
         videoB.src = '';
     }
 
-    // 播完自动切下一段
+    // Auto-switch to next segment when finished
     videoA.onended = () => {
         if (_dp.idx !== idx) return;
         _dpGoTo(idx + 1, 0);
     };
 }
 
-// 根据鼠标位置计算全局秒数
+// Compute global seconds from mouse position
 function _dpPctToSec(e) {
     const track = document.getElementById('_dpTrack');
     if (!track || _dp.total === 0) return null;
@@ -721,7 +721,7 @@ function _dpPctToSec(e) {
     return pct * _dp.total;
 }
 
-// 只更新进度条视觉（拖拽中预览用，不触发 load）
+// Only update progress bar visuals (for drag preview, does not trigger  load)
 function _dpPreviewBar(globalSec) {
     const pct = _dp.total > 0 ? Math.min(globalSec / _dp.total, 1) : 0;
     const bar = document.getElementById('_dpBar');
@@ -730,9 +730,9 @@ function _dpPreviewBar(globalSec) {
     if (timeCur) timeCur.textContent = _dpFmtTime(globalSec);
 }
 
-// 进度条点击 seek（非拖拽）
+// Progress-bar click  seek(non-drag)
 function _dpSeek(e) {
-    // 如果是拖拽结束触发的 click 事件，忽略（mouseup 已处理）
+    // If it is a  click event triggered at the end of a drag, ignore (mouseup  already handled)
     if (window._dpJustDragged) { window._dpJustDragged = false; return; }
     const sec = _dpPctToSec(e);
     if (sec == null) return;
@@ -740,11 +740,11 @@ function _dpSeek(e) {
     _dpGoTo(idx, offset);
 }
 
-// ── 播放全天录像 ──────────────────────────────────────────────────────
+// ── Play full-day recordings ──────────────────────────────────────────────────────
 function playDayRecordings() {
-    if (!_recSelectedStream) { showToast('请先选择左侧流', 'error'); return; }
+    if (!_recSelectedStream) { showToast('Select a stream on the left first', 'error'); return; }
     const date = _recSelectedDate;
-    if (!date) { showToast('请先选择日期', 'error'); return; }
+    if (!date) { showToast('Select a date first', 'error'); return; }
     const { vhost, app, stream } = _recSelectedStream;
     const params = new URLSearchParams({ vhost, app, stream, date });
 
@@ -752,15 +752,15 @@ function playDayRecordings() {
         .then(r => r.json())
         .then(res => {
             if (res.code !== 0 || !res.data || res.data.length === 0) {
-                showToast(res.msg || '该流当天暂无录像', 'error'); return;
+                showToast(res.msg || 'No recordings for this stream on this day', 'error'); return;
             }
-            _startDayPlayer(res.data, `全天 · ${app}/${stream} · ${date}`);
+            _startDayPlayer(res.data, `All day · ${app}/${stream} · ${date}`);
         })
-        .catch(() => showToast('获取全天录像列表失败', 'error'));
+        .catch(() => showToast('Failed to get full-day recording list', 'error'));
 }
 
 function _startDayPlayer(list, label) {
-    // 计算累积偏移
+    // Compute cumulative offsets
     const offsets = [0];
     for (let i = 0; i < list.length - 1; i++) {
         offsets.push(offsets[i] + (list[i].time_len || 0));
@@ -769,7 +769,7 @@ function _startDayPlayer(list, label) {
 
     _dp.list = list; _dp.offsets = offsets; _dp.total = total; _dp.idx = 0; _dp.label = label; _dp.seekingTo = null; _dp.speed = 1;
 
-    // 构建/复用弹窗
+    // Build/reuse popup
     let modal = document.getElementById('recPlayerModal');
     if (modal) modal.remove();
 
@@ -781,7 +781,7 @@ function _startDayPlayer(list, label) {
             <div class="flex items-center justify-between px-5 py-3 border-b border-white/10">
                 <span class="text-white font-semibold text-sm" id="_dpTitle">${label}</span>
                 <div class="flex items-center gap-2">
-                    <!-- 倍速选择 -->
+                    <!-- Speed selector -->
                     <select id="_dpSpeed" onchange="_dpSetSpeed(this.value)"
                         class="bg-gray-800 text-white/80 text-xs rounded px-2 py-1 border border-white/10 outline-none cursor-pointer">
                         <option value="0.5">0.5×</option>
@@ -790,8 +790,8 @@ function _startDayPlayer(list, label) {
                         <option value="2">2×</option>
                         <option value="4">4×</option>
                     </select>
-                    <!-- 全屏 -->
-                    <button onclick="_dpToggleFullscreen()" title="全屏"
+                    <!-- Fullscreen -->
+                    <button onclick="_dpToggleFullscreen()" title="Fullscreen"
                         class="text-white/60 hover:text-white transition px-1 text-base leading-none">⛶</button>
                     <button onclick="closeRecPlayer()" class="text-white/50 hover:text-white transition text-lg leading-none">&times;</button>
                 </div>
@@ -802,7 +802,7 @@ function _startDayPlayer(list, label) {
                     style="min-height:200px;"></video>
                 <video id="_dpVideoB" preload="auto" style="display:none"></video>
             </div>
-            <!-- 自定义进度条 -->
+            <!-- Custom progress bar -->
             <div class="px-4 pt-2 pb-3 bg-gray-900 select-none" id="_dpControlBar">
                 <div id="_dpTrack" class="relative h-2 bg-white/20 rounded-full cursor-pointer"
                     style="user-select:none"
@@ -819,12 +819,12 @@ function _startDayPlayer(list, label) {
     modal.addEventListener('click', e => { if (e.target === modal) closeRecPlayer(); });
     document.body.appendChild(modal);
 
-    // 拖拽 seek 支持：拖拽中只预览，mouseup 才真正跳转
+    // Drag-seek support: only preview during drag; mouseup  actually seeks
     window._dpDragging = false;
     window._dpJustDragged = false;
     window._dpSeekStart = function(e) {
         window._dpDragging = true;
-        // 拖拽期间暂停 tick（进度条由拖拽预览接管）
+        // Pause during drag  tick(progress bar taken over by drag preview)
         if (_dp.raf) { cancelAnimationFrame(_dp.raf); _dp.raf = null; }
         _dpPreviewBar(_dpPctToSec(e) || 0);
 
@@ -843,7 +843,7 @@ function _startDayPlayer(list, label) {
                 const { idx, offset } = _dpSegAt(sec);
                 _dpGoTo(idx, offset);
             }
-            // 恢复 tick
+            // Resume  tick
             if (!_dp.raf) _dp.raf = requestAnimationFrame(_dpTick);
         };
         document.addEventListener('mousemove', onMove);
@@ -853,20 +853,20 @@ function _startDayPlayer(list, label) {
     if (_dp.raf) cancelAnimationFrame(_dp.raf);
     _dp.raf = requestAnimationFrame(_dpTick);
 
-    // 全屏变化时，同步倍速并让控制栏覆盖在全屏视频上
+    // On fullscreen change, sync speed and overlay the control bar on the fullscreen video
     document.addEventListener('fullscreenchange', _dpOnFullscreenChange);
 
     _dpGoTo(0, 0);
 }
 
-// 设置倍速（切换 src 后也需重设，在 loadedmetadata 中处理）
+// Set speed (after switching  src  it must be reset too, handled in  loadedmetadata )
 function _dpSetSpeed(val) {
     _dp.speed = parseFloat(val) || 1;
     const v = document.getElementById('_dpVideoA');
     if (v) v.playbackRate = _dp.speed;
 }
 
-// 全屏切换
+// Toggle fullscreen
 function _dpToggleFullscreen() {
     const panel = document.getElementById('_dpPanel');
     if (!panel) return;
@@ -877,21 +877,21 @@ function _dpToggleFullscreen() {
     }
 }
 
-// 全屏变化回调：全屏时让控制栏固定在底部
+// Fullscreen-change callback: pin the control bar to the bottom in fullscreen
 function _dpOnFullscreenChange() {
     const panel = document.getElementById('_dpPanel');
     const videoWrap = document.getElementById('_dpVideoWrap');
     const ctrl = document.getElementById('_dpControlBar');
     if (!panel) return;
     if (document.fullscreenElement === panel) {
-        // 进入全屏：视频撑满，控制栏绝对定位在底部
+        // Enter fullscreen: video fills the area, control bar absolutely positioned at the bottom
         panel.style.cssText = 'position:relative;width:100%;height:100%;max-width:none;border-radius:0;display:flex;flex-direction:column;';
         if (videoWrap) videoWrap.style.cssText = 'flex:1;overflow:hidden;';
         const v = document.getElementById('_dpVideoA');
         if (v) v.style.cssText = 'width:100%;height:100%;max-height:none;object-fit:contain;';
         if (ctrl) ctrl.style.cssText = 'flex-shrink:0;';
     } else {
-        // 退出全屏：恢复样式
+        // Exit fullscreen: restore styles
         panel.style.cssText = '';
         if (videoWrap) videoWrap.style.cssText = '';
         const v = document.getElementById('_dpVideoA');
@@ -900,9 +900,9 @@ function _dpOnFullscreenChange() {
     }
 }
 
-// ── 播放单条录像 ──────────────────────────────────────────────────────
+// ── Play a single recording ──────────────────────────────────────────────────────
 function playRecording(id) {
-    closeRecPlayer(); // 先关闭旧弹窗
+    closeRecPlayer(); // Close old popup first
     const url = `/index/pyapi/recordings/file?id=${id}&disposition=inline`;
     const modal = document.createElement('div');
     modal.id = 'recPlayerModal';
@@ -910,7 +910,7 @@ function playRecording(id) {
     modal.innerHTML = `
         <div class="relative bg-gray-900 rounded-2xl shadow-2xl overflow-hidden w-full max-w-3xl mx-4" onclick="event.stopPropagation()">
             <div class="flex items-center justify-between px-5 py-3 border-b border-white/10">
-                <span class="text-white font-semibold text-sm">录像播放</span>
+                <span class="text-white font-semibold text-sm">Recording playback</span>
                 <button onclick="closeRecPlayer()" class="text-white/50 hover:text-white transition text-lg leading-none">&times;</button>
             </div>
             <div class="p-4 bg-black">

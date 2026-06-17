@@ -8,20 +8,20 @@ document.addEventListener('DOMContentLoaded', async function() {
     initNavigation();
     await initLogout();
     
-    addTab('dashboard', '状态概览', 'fa-dashboard');
+    addTab('dashboard', 'Dashboard', 'fa-dashboard');
 });
 
 let tabs = [];
 let activeTab = null;
 
 const pageNames = {
-    'dashboard': '状态概览',
-    'streams': '视频管理',
-    'pull-proxy': '拉流代理',
-    'settings': '服务配置',
-    'whip': '在线推流',
-    'network': '连接管理',
-    'protocol-options': '协议配置'
+    'dashboard': 'Dashboard',
+    'streams': 'Streams',
+    'pull-proxy': 'Pull Proxy',
+    'settings': 'Service Config',
+    'whip': 'Online Push',
+    'network': 'Connections',
+    'protocol-options': 'Protocol Config'
 };
 
 const pageIcons = {
@@ -58,22 +58,22 @@ function addTab(pageName, title, icon) {
 }
 
 /**
- * 跳转到视频管理页面，并自动应用 vhost/app/stream 筛选
- * @param {string} vhost  虚拟主机，如 __defaultVhost__
- * @param {string} app    应用名
- * @param {string} stream 流ID
+ * Jump to Streams page and auto-apply vhost/app/stream filter
+ * @param {string} vhost  virtual host, e.g. __defaultVhost__
+ * @param {string} app    app name
+ * @param {string} stream Stream ID
  */
 function navigateToStreams(vhost, app, stream) {
-    // 把筛选参数暂存，loadStreamsPage 初始化完成后读取
+    // Stash filter params; loadStreamsPage read after init completes
     window._pendingStreamsFilter = { vhost: vhost || '', app: app || '', stream: stream || '' };
 
     const existingTab = tabs.find(tab => tab.pageName === 'streams');
     if (existingTab) {
-        // 页面已存在：switchTab 会调用 loadPageData → loadStreamsPage 重新加载内容
+        // Page exists: switchTab will call loadPageData → loadStreamsPage reload content
         switchTab('streams');
     } else {
-        // 页面不存在：addTab 触发 switchTab → loadStreamsPage
-        addTab('streams', '视频管理', 'fa-video-camera');
+        // Page does not exist: addTab trigger switchTab → loadStreamsPage
+        addTab('streams', 'Streams', 'fa-video-camera');
     }
 }
 
@@ -114,7 +114,7 @@ function closeTab(pageName, event) {
     const tabIndex = tabs.findIndex(tab => tab.pageName === pageName);
     if (tabIndex === -1) return;
     
-    // 清理模态框和播放器
+    // Clean up modals and players
     if (pageName === 'streams' && typeof cleanupStreamsPage === 'function') {
         cleanupStreamsPage();
     } else if (pageName === 'pull-proxy' && typeof cleanupPullProxyPage === 'function') {
@@ -125,16 +125,16 @@ function closeTab(pageName, event) {
             protocolOptionsModalContainer.innerHTML = '';
         }
     } else if (pageName === 'plugins') {
-        // 清理提升到 body 的插件弹窗
+        // Clean up lifted-to-body plugin popups
         ['bindingModal', 'paramsModal'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.remove();
         });
     } else if (pageName === 'whip' && typeof whipState !== 'undefined' && whipState.isStreaming) {
-        console.log('关闭whip标签页，停止推流...');
+        console.log('Close whip tab, stop push...');
         stopWhipStream();
     } else if (pageName === 'dashboard' && typeof cleanupDashboard === 'function') {
-        console.log('关闭dashboard标签页，清理资源...');
+        console.log('Close dashboard tab, clean up resources...');
         cleanupDashboard();
     }
     
@@ -210,47 +210,47 @@ function loadPageData(pageName) {
 
 async function loadDashboardPage() {
     const content = document.getElementById('dashboard-content');
-    console.log('开始加载dashboard页面...');
+    console.log('Start loading dashboard page...');
     
     content.innerHTML = `
         <div class="flex justify-center items-center h-64">
             <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
-            <span class="text-white/60 font-semibold">加载中...</span>
+            <span class="text-white/60 font-semibold">Loading...</span>
         </div>
     `;
     
     try {
-        console.log('正在获取dashboard.html文件...');
+        console.log('Fetching dashboard.html file...');
         const response = await fetch('pages/dashboard.html');
-        console.log('dashboard.html文件获取成功，状态:', response.status);
+        console.log('dashboard.html file fetched successfully, status:', response.status);
         
         if (response.ok) {
             const html = await response.text();
-            console.log('dashboard.html文件内容长度:', html.length);
+            console.log('dashboard.html file content length:', html.length);
             content.innerHTML = html;
-            console.log('dashboard.html文件内容已加载到页面');
+            console.log('dashboard.html file content loaded into page');
             
             setTimeout(() => {
-                console.log('开始初始化dashboard功能...');
+                console.log('Start initializing dashboard feature...');
                 if (typeof initDashboard === 'function') {
                     initDashboard();
                 } else {
-                    console.error('initDashboard函数未定义');
+                    console.error('initDashboard function not defined');
                 }
             }, 100);
         } else {
-            console.error('加载dashboard.html文件失败，状态:', response.status);
+            console.error('Load dashboard.html file failed, status:', response.status);
             content.innerHTML = `
                 <div class="text-center p-10 text-white/60 font-semibold">
-                    加载状态概览页面失败
+                    Failed to load Dashboard page
                 </div>
             `;
         }
     } catch (error) {
-        console.error('加载dashboard页面时发生错误:', error);
+        console.error('Load dashboard page error:', error);
         content.innerHTML = `
             <div class="text-center p-10 text-white/60 font-semibold">
-                网络错误: ${error.message}
+                Network error: ${error.message}
             </div>
         `;
     }
@@ -258,30 +258,30 @@ async function loadDashboardPage() {
 
 async function loadStreamsPage() {
     const content = document.getElementById('streams-content');
-    console.log('开始加载streams页面...');
+    console.log('Start loading streams page...');
     
     content.innerHTML = `
         <div class="flex justify-center items-center h-64">
             <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
-            <span class="text-white/60 font-semibold">加载中...</span>
+            <span class="text-white/60 font-semibold">Loading...</span>
         </div>
     `;
     
     try {
-        console.log('正在获取streams.html文件...');
+        console.log('Fetching streams.html file...');
         const response = await fetch('pages/streams.html');
-        console.log('streams.html文件获取成功，状态:', response.status);
+        console.log('streams.html file fetched successfully, status:', response.status);
         
         if (response.ok) {
             const html = await response.text();
-            console.log('streams.html文件内容长度:', html.length);
+            console.log('streams.html file content length:', html.length);
             content.innerHTML = html;
-            console.log('streams.html文件内容已加载到页面');
+            console.log('streams.html file content loaded into page');
             
             setTimeout(() => {
-                console.log('开始初始化streams功能...');
+                console.log('Start initializing streams feature...');
                 if (typeof loadStreams === 'function') {
-                    // 若有待填充的跳转筛选参数，先应用
+                    // If there are pending jump filter params, apply them first
                     if (window._pendingStreamsFilter) {
                         const f = window._pendingStreamsFilter;
                         window._pendingStreamsFilter = null;
@@ -297,13 +297,13 @@ async function loadStreamsPage() {
                     const vhostFilter = document.getElementById('vhostFilter');
                     if (vhostFilter) {
                         vhostFilter.addEventListener('input', loadStreams);
-                        console.log('Vhost筛选事件监听器已绑定');
+                        console.log('Vhost filter event listener bound');
                     }
                     
                     const protocolFilter = document.getElementById('protocolFilter');
                     if (protocolFilter) {
                         protocolFilter.addEventListener('change', loadStreams);
-                        console.log('协议筛选事件监听器已绑定');
+                        console.log('Protocol filter event listener bound');
                     }
                     
                     const appFilter = document.getElementById('appFilter');
@@ -319,25 +319,25 @@ async function loadStreamsPage() {
                     const refreshButton = document.getElementById('refreshStreams');
                     if (refreshButton) {
                         refreshButton.addEventListener('click', loadStreams);
-                        console.log('刷新按钮事件监听器已绑定');
+                        console.log('Refresh button event listener bound');
                     }
                 } else {
-                    console.error('loadStreams函数未定义');
+                    console.error('loadStreams function not defined');
                 }
             }, 100);
         } else {
-            console.error('加载streams.html文件失败，状态:', response.status);
+            console.error('Load streams.html file failed, status:', response.status);
             content.innerHTML = `
                 <div class="text-center p-10 text-white/60 font-semibold">
-                    加载视频管理页面失败
+                    Failed to load Streams page
                 </div>
             `;
         }
     } catch (error) {
-        console.error('加载streams页面时发生错误:', error);
+        console.error('Load streams page error:', error);
         content.innerHTML = `
             <div class="text-center p-10 text-white/60 font-semibold">
-                网络错误: ${error.message}
+                Network error: ${error.message}
             </div>
         `;
     }
@@ -345,47 +345,47 @@ async function loadStreamsPage() {
 
 async function loadPullProxyPage() {
     const content = document.getElementById('pull-proxy-content');
-    console.log('开始加载pull-proxy页面...');
+    console.log('Start loading pull-proxy page...');
     
     content.innerHTML = `
         <div class="flex justify-center items-center h-64">
             <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
-            <span class="text-white/60 font-semibold">加载中...</span>
+            <span class="text-white/60 font-semibold">Loading...</span>
         </div>
     `;
     
     try {
-        console.log('正在获取pull-proxy.html文件...');
+        console.log('Fetching pull-proxy.html file...');
         const response = await fetch('pages/pull-proxy.html');
-        console.log('pull-proxy.html文件获取成功，状态:', response.status);
+        console.log('pull-proxy.html file fetched successfully, status:', response.status);
         
         if (response.ok) {
             const html = await response.text();
-            console.log('pull-proxy.html文件内容长度:', html.length);
+            console.log('pull-proxy.html file content length:', html.length);
             content.innerHTML = html;
-            console.log('pull-proxy.html文件内容已加载到页面');
+            console.log('pull-proxy.html file content loaded into page');
             
             setTimeout(() => {
-                console.log('开始初始化pull-proxy功能...');
+                console.log('Start initializing pull-proxy feature...');
                 if (typeof loadPullProxyList === 'function') {
                     loadPullProxyList();
                 } else {
-                    console.error('loadPullProxyList函数未定义');
+                    console.error('loadPullProxyList function not defined');
                 }
             }, 100);
         } else {
-            console.error('加载pull-proxy.html文件失败，状态:', response.status);
+            console.error('Load pull-proxy.html file failed, status:', response.status);
             content.innerHTML = `
                 <div class="text-center p-10 text-white/60 font-semibold">
-                    加载拉流代理页面失败
+                    Failed to load Pull Proxy page
                 </div>
             `;
         }
     } catch (error) {
-        console.error('加载pull-proxy页面时发生错误:', error);
+        console.error('Load pull-proxy page error:', error);
         content.innerHTML = `
             <div class="text-center p-10 text-white/60 font-semibold">
-                网络错误: ${error.message}
+                Network error: ${error.message}
             </div>
         `;
     }
@@ -394,47 +394,47 @@ async function loadPullProxyPage() {
 
 async function loadSettingsPage() {
     const content = document.getElementById('settings-content');
-    console.log('开始加载settings页面...');
+    console.log('Start loading settings page...');
     
     content.innerHTML = `
         <div class="flex justify-center items-center h-64">
             <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
-            <span class="text-white/60 font-semibold">加载中...</span>
+            <span class="text-white/60 font-semibold">Loading...</span>
         </div>
     `;
     
     try {
-        console.log('正在获取settings.html文件...');
+        console.log('Fetching settings.html file...');
         const response = await fetch('pages/settings.html');
-        console.log('settings.html文件获取成功，状态:', response.status);
+        console.log('settings.html file fetched successfully, status:', response.status);
         
         if (response.ok) {
             const html = await response.text();
-            console.log('settings.html文件内容长度:', html.length);
+            console.log('settings.html file content length:', html.length);
             content.innerHTML = html;
-            console.log('settings.html文件内容已加载到页面');
+            console.log('settings.html file content loaded into page');
             
             setTimeout(() => {
-                console.log('开始初始化settings功能...');
+                console.log('Start initializing settings feature...');
                 if (typeof initSettingsPage === 'function') {
                     initSettingsPage();
                 } else {
-                    console.error('initSettingsPage函数未定义');
+                    console.error('initSettingsPage function not defined');
                 }
             }, 100);
         } else {
-            console.error('加载settings.html文件失败，状态:', response.status);
+            console.error('Load settings.html file failed, status:', response.status);
             content.innerHTML = `
                 <div class="text-center p-10 text-white/60 font-semibold">
-                    加载服务配置页面失败
+                    Failed to load Service Config page
                 </div>
             `;
         }
     } catch (error) {
-        console.error('加载settings页面时发生错误:', error);
+        console.error('Load settings page error:', error);
         content.innerHTML = `
             <div class="text-center p-10 text-white/60 font-semibold">
-                网络错误: ${error.message}
+                Network error: ${error.message}
             </div>
         `;
     }
@@ -442,10 +442,10 @@ async function loadSettingsPage() {
 
 async function loadWhipPage() {
     const content = document.getElementById('whip-content');
-    console.log('开始加载whip页面...');
+    console.log('Start loading whip page...');
     
     if (typeof whipState !== 'undefined' && whipState.initialized) {
-        console.log('whip页面已初始化，恢复状态...');
+        console.log('whipPage already initialized, restoring state...');
         if (typeof restoreWhipState === 'function') {
             restoreWhipState();
         }
@@ -455,45 +455,45 @@ async function loadWhipPage() {
     content.innerHTML = `
         <div class="flex justify-center items-center h-64">
             <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
-            <span class="text-white/60 font-semibold">加载中...</span>
+            <span class="text-white/60 font-semibold">Loading...</span>
         </div>
     `;
     
     try {
-        console.log('正在获取whip.html文件...');
+        console.log('Fetching whip.html file...');
         const response = await fetch('pages/whip.html');
-        console.log('whip.html文件获取成功，状态:', response.status);
+        console.log('whip.html file fetched successfully, status:', response.status);
         
         if (response.ok) {
             const html = await response.text();
-            console.log('whip.html文件内容长度:', html.length);
+            console.log('whip.html file content length:', html.length);
             content.innerHTML = html;
-            console.log('whip.html文件内容已加载到页面');
+            console.log('whip.html file content loaded into page');
             
             setTimeout(() => {
-                console.log('开始初始化whip推流功能...');
+                console.log('Start initializing whip push feature...');
                 if (typeof initWhipStreaming === 'function') {
                     initWhipStreaming();
                     if (typeof whipState !== 'undefined') {
                         whipState.initialized = true;
                     }
                 } else {
-                    console.error('initWhipStreaming函数未定义');
+                    console.error('initWhipStreaming function not defined');
                 }
             }, 100);
         } else {
-            console.error('加载whip.html文件失败，状态:', response.status);
+            console.error('Load whip.html file failed, status:', response.status);
             content.innerHTML = `
                 <div class="text-center p-10 text-white/60 font-semibold">
-                    加载在线推流页面失败
+                    Failed to load Online Push page
                 </div>
             `;
         }
     } catch (error) {
-        console.error('加载whip页面时发生错误:', error);
+        console.error('Load whip page error:', error);
         content.innerHTML = `
             <div class="text-center p-10 text-white/60 font-semibold">
-                网络错误: ${error.message}
+                Network error: ${error.message}
             </div>
         `;
     }
@@ -501,103 +501,103 @@ async function loadWhipPage() {
 
 async function loadNetworkPage() {
     const content = document.getElementById('network-content');
-    console.log('开始加载network页面...');
+    console.log('Start loading network page...');
     
     content.innerHTML = `
         <div class="flex justify-center items-center h-64">
             <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
-            <span class="text-white/60 font-semibold">加载中...</span>
+            <span class="text-white/60 font-semibold">Loading...</span>
         </div>
     `;
     
     try {
-        console.log('正在获取network.html文件...');
+        console.log('Fetching network.html file...');
         const response = await fetch('pages/network.html');
-        console.log('network.html文件获取成功，状态:', response.status);
+        console.log('network.html file fetched successfully, status:', response.status);
         
         if (response.ok) {
             const html = await response.text();
-            console.log('network.html文件内容长度:', html.length);
+            console.log('network.html file content length:', html.length);
             content.innerHTML = html;
-            console.log('network.html文件内容已加载到页面');
+            console.log('network.html file content loaded into page');
             
             setTimeout(() => {
-                console.log('开始初始化network功能...');
+                console.log('Start initializing network feature...');
                 if (typeof initNetwork === 'function') {
                     initNetwork();
                 } else {
-                    console.error('initNetwork函数未定义');
+                    console.error('initNetwork function not defined');
                 }
             }, 100);
         } else {
-            console.error('加载network.html文件失败，状态:', response.status);
+            console.error('Load network.html file failed, status:', response.status);
             content.innerHTML = `
                 <div class="text-center p-10 text-white/60 font-semibold">
-                    加载网络链接页面失败
+                    Failed to load Connections page
                 </div>
             `;
         }
     } catch (error) {
-        console.error('加载network页面时发生错误:', error);
+        console.error('Load network page error:', error);
         content.innerHTML = `
             <div class="text-center p-10 text-white/60 font-semibold">
-                网络错误: ${error.message}
+                Network error: ${error.message}
             </div>
         `;
     }
 }
 
 async function loadProtocolOptionsPage() {
-    console.log('loadProtocolOptionsPage函数被调用');
+    console.log('loadProtocolOptionsPage function called');
     const content = document.getElementById('protocol-options-content');
-    console.log('找到protocol-options-content元素:', content);
+    console.log('Found protocol-options-content element:', content);
     if (!content) {
-        console.error('protocol-options-content元素不存在');
+        console.error('protocol-options-content element does not exist');
         return;
     }
-    console.log('开始加载protocol-options页面...');
+    console.log('Start loading protocol-options page...');
     
     content.innerHTML = `
         <div class="flex justify-center items-center h-64">
             <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
-            <span class="text-white/60 font-semibold">加载中...</span>
+            <span class="text-white/60 font-semibold">Loading...</span>
         </div>
     `;
     
     try {
-        console.log('正在获取protocol-options.html文件...');
+        console.log('Fetching protocol-options.html file...');
         const response = await fetch('pages/protocol-options.html');
-        console.log('protocol-options.html文件获取成功，状态:', response.status);
+        console.log('protocol-options.html file fetched successfully, status:', response.status);
         
         if (response.ok) {
             const html = await response.text();
-            console.log('protocol-options.html文件内容长度:', html.length);
+            console.log('protocol-options.html file content length:', html.length);
             content.innerHTML = html;
-            console.log('protocol-options.html文件内容已加载到页面');
+            console.log('protocol-options.html file content loaded into page');
             
             setTimeout(() => {
-                console.log('开始初始化protocol-options功能...');
-                console.log('loadProtocolOptions函数是否存在:', typeof loadProtocolOptions === 'function');
+                console.log('Start initializing protocol-options feature...');
+                console.log('loadProtocolOptions function exists?:', typeof loadProtocolOptions === 'function');
                 if (typeof loadProtocolOptions === 'function') {
-                    console.log('调用loadProtocolOptions函数');
+                    console.log('call loadProtocolOptions function');
                     loadProtocolOptions();
                 } else {
-                    console.error('loadProtocolOptions函数未定义');
+                    console.error('loadProtocolOptions function not defined');
                 }
             }, 100);
         } else {
-            console.error('加载protocol-options.html文件失败，状态:', response.status);
+            console.error('Load protocol-options.html file failed, status:', response.status);
             content.innerHTML = `
                 <div class="text-center p-10 text-white/60 font-semibold">
-                    加载协议配置页面失败
+                    Failed to load Protocol Config page
                 </div>
             `;
         }
     } catch (error) {
-        console.error('加载protocol-options页面时发生错误:', error);
+        console.error('Load protocol-options page error:', error);
         content.innerHTML = `
             <div class="text-center p-10 text-white/60 font-semibold">
-                网络错误: ${error.message}
+                Network error: ${error.message}
             </div>
         `;
     }
@@ -636,14 +636,14 @@ function showConfirmModal(title, message, onConfirm, onCancel) {
             </div>
             <p class="text-white/80 mb-6">${message}</p>
             <div class="flex justify-end space-x-3">
-                <button class="bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-600 transition-colors" id="confirmModalCancel">取消</button>
-                <button class="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-neon transition-colors" id="confirmModalConfirm">确认</button>
+                <button class="bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-600 transition-colors" id="confirmModalCancel">Cancel</button>
+                <button class="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-neon transition-colors" id="confirmModalConfirm">Confirm</button>
             </div>
         </div>
     `;
     document.body.appendChild(modal);
     
-    // 添加事件监听器
+    // Add event listener
     document.getElementById('confirmModalClose').addEventListener('click', function() {
         modal.remove();
     });
@@ -676,18 +676,18 @@ function showConfirmModal(title, message, onConfirm, onCancel) {
 async function initLogout() {
     document.getElementById('logoutBtn').addEventListener('click', async function() {
         showConfirmModal(
-            '确认退出登录',
-            '确定要退出登录吗？',
+            'Confirm log out',
+            'Are you sure you want to log out?',
             async function() {
                 try {
                     await Api.logout();
                     Api.clearAuth();
-                    showToast('已退出登录', 'info');
+                    showToast('Logged out', 'info');
                     setTimeout(() => {
                         window.location.href = 'login.html';
                     }, 1000);
                 } catch (error) {
-                    showToast('退出登录失败: ' + error.message, 'error');
+                    showToast('Log out failed: ' + error.message, 'error');
                 }
             }
         );
@@ -757,7 +757,7 @@ async function loadPluginsPage() {
         if (response.ok) {
             const html = await response.text();
             content.innerHTML = html;
-            // 把所有插件弹窗提升到 body，避免父容器 pointer-events-none / overflow 干扰
+            // Lift all plugin popups to body, to avoid parent container pointer-events-none / overflow interference
             ['bindingModal', 'paramsModal'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) document.body.appendChild(el);
@@ -766,10 +766,10 @@ async function loadPluginsPage() {
                 if (typeof initPluginsPage === 'function') initPluginsPage();
             }, 100);
         } else {
-            content.innerHTML = `<div class="text-center p-10 text-white/60">加载插件管理页面失败</div>`;
+            content.innerHTML = `<div class="text-center p-10 text-white/60">Failed to load Plugins page</div>`;
         }
     } catch (e) {
-        content.innerHTML = `<div class="text-center p-10 text-white/60">网络错误: ${e.message}</div>`;
+        content.innerHTML = `<div class="text-center p-10 text-white/60">Network error: ${e.message}</div>`;
     }
 }
 
@@ -778,7 +778,7 @@ async function loadRecordingsPageWrapper() {
     if (!content) return;
     if (!content.dataset.loaded) {
         const resp = await fetch('pages/recordings.html');
-        content.innerHTML = resp.ok ? await resp.text() : '<div class="text-white/40 p-10 text-center">加载失败</div>';
+        content.innerHTML = resp.ok ? await resp.text() : '<div class="text-white/40 p-10 text-center">Load failed</div>';
         content.dataset.loaded = '1';
     }
     if (typeof loadRecordingsPage === 'function') loadRecordingsPage();

@@ -1,27 +1,27 @@
 /**
- * plugins.js — 插件管理页面逻辑
- * 数据结构（新版）：
+ * plugins.js — Plugins page logic
+ * Data structure (new):
  *   _bindings = [
  *     { event_type: "on_publish", bindings: [{id, plugin_name, params, priority, enabled}, ...] },
  *     ...
  *   ]
  */
 
-// ── 状态 ────────────────────────────────────────────────────────────
-let _allPlugins   = [];   // 已加载插件列表
-let _allEvents    = [];   // 支持的事件类型
-let _bindings     = [];   // 事件绑定配置（新结构）
-let _editEvent    = null; // 当前编辑的事件类型
-let _dragSource   = null; // 拖拽源元素
-// 编辑绑定弹窗中已绑定插件的有序数组：[{ pluginName, paramKey }, ...]
+// ── state ────────────────────────────────────────────────────────────
+let _allPlugins   = [];   // Loaded plugins list
+let _allEvents    = [];   // Supported event types
+let _bindings     = [];   // Event binding config (new structure)
+let _editEvent    = null; // Currently editing event type
+let _dragSource   = null; // Drag source element
+// Ordered array of bound plugins in the edit-binding modal:[{ pluginName, paramKey }, ...]
 let _selectedBindings = [];
-// 参数弹窗状态
-let _paramsPlugin = null; // 当前编辑参数的 paramKey
+// Params modal state
+let _paramsPlugin = null; // paramKey currently being edited paramKey
 let _paramsEvent  = null;
-// 编辑弹窗中每个绑定实例的临时 params（key = paramKey）
+// Temp params for each binding instance in the edit modal params(key = paramKey)
 let _editParams   = {};
 
-// ── API 封装 ──────────────────────────────────────────────────────
+// ── API wrapper ──────────────────────────────────────────────────────
 async function apiGet(path) {
     return await Api.request(path, { method: 'GET' });
 }
@@ -29,14 +29,14 @@ async function apiPost(path, body) {
     return await Api.request(path, { method: 'POST', body });
 }
 
-// ── 初始化 ──────────────────────────────────────────────────────────
+// ── Initialize ──────────────────────────────────────────────────────────
 async function initPluginsPage() {
     await Promise.all([loadPluginList(), loadEventBindings()]);
     document.getElementById('reloadPluginsBtn')
         .addEventListener('click', reloadPlugins);
 }
 
-// ── 加载插件列表 ──────────────────────────────────────────────────────
+// ── Load plugin list ──────────────────────────────────────────────────────
 async function loadPluginList() {
     try {
         const res = await apiGet('/index/pyapi/plugin/list');
@@ -50,20 +50,20 @@ async function loadPluginList() {
 
 function renderPluginList() {
     const container = document.getElementById('pluginList');
-    document.getElementById('pluginCount').textContent = `共 ${_allPlugins.length} 个`;
+    document.getElementById('pluginCount').textContent = `Total: ${_allPlugins.length}`;
 
     if (!_allPlugins.length) {
         container.innerHTML = `<div class="col-span-full text-white/40 py-8 text-center">
             <i class="fa fa-inbox text-3xl mb-2 block"></i>
-            暂无插件，请将插件 .py 文件放入 backend/plugins/ 目录后热加载
+            No plugins. Put plugin .py  file into backend/plugins/  directory, then hot-reload
         </div>`;
         return;
     }
 
     container.innerHTML = _allPlugins.map(p => {
         const typeBadge = p.interruptible
-            ? `<span class="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 ml-1 font-mono">拦截型</span>`
-            : `<span class="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 ml-1 font-mono">监听型</span>`;
+            ? `<span class="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 ml-1 font-mono">Intercepting</span>`
+            : `<span class="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 ml-1 font-mono">Listening</span>`;
         return `
         <div class="bg-white/5 border border-white/10 rounded-xl p-4 hover:border-primary/50 transition-colors">
             <div class="flex items-start justify-between mb-2 gap-2 flex-wrap">
@@ -79,7 +79,7 @@ function renderPluginList() {
     }).join('');
 }
 
-// ── 加载事件绑定 ──────────────────────────────────────────────────────
+// ── Load event bindings ──────────────────────────────────────────────────────
 async function loadEventBindings() {
     try {
         const [evtRes, bindRes] = await Promise.all([
@@ -98,7 +98,7 @@ async function loadEventBindings() {
 function renderEventBindings() {
     const tbody = document.getElementById('eventBindingsTable');
     if (!_bindings.length) {
-        tbody.innerHTML = `<tr><td colspan="3" class="text-white/40 p-8 text-center">暂无数据</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" class="text-white/40 p-8 text-center">No data</td></tr>`;
         return;
     }
 
@@ -111,23 +111,23 @@ function renderEventBindings() {
                 const plugin = _allPlugins.find(p => p.name === b.plugin_name);
                 const typeTag = plugin
                     ? (plugin.interruptible
-                        ? `<i class="fa fa-bolt text-red-400 ml-1 text-[10px]" title="拦截型：消费后终止后续插件"></i>`
-                        : `<i class="fa fa-eye text-green-400 ml-1 text-[10px]" title="监听型：不阻断后续插件"></i>`)
+                        ? `<i class="fa fa-bolt text-red-400 ml-1 text-[10px]" title="Intercepting: stops subsequent plugins after consuming"></i>`
+                        : `<i class="fa fa-eye text-green-400 ml-1 text-[10px]" title="Listening: does not block subsequent plugins"></i>`)
                     : '';
                 const hasParams = b.params && Object.keys(b.params).length > 0;
                 const paramTag  = hasParams
-                    ? `<i class="fa fa-cog text-yellow-400 ml-1 text-[10px]" title="已配置参数"></i>`
+                    ? `<i class="fa fa-cog text-yellow-400 ml-1 text-[10px]" title="Parameters configured"></i>`
                     : '';
                 const hitCount  = b.hit_count || 0;
                 const hitTag    = hitCount > 0
-                    ? `<span class="ml-1 text-[10px] text-white/40" title="命中次数">${hitCount}</span>`
+                    ? `<span class="ml-1 text-[10px] text-white/40" title="Hit count">${hitCount}</span>`
                     : '';
                 const enabledCls = b.enabled ? 'bg-primary/20 text-primary' : 'bg-white/10 text-white/40 line-through';
                 return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono mr-1 mb-1 ${enabledCls}">
                     ${escHtml(b.plugin_name)}${typeTag}${paramTag}${hitTag}
                 </span>`;
               }).join('')
-            : `<span class="text-white/30 text-sm italic">未绑定</span>`;
+            : `<span class="text-white/30 text-sm italic">Not bound</span>`;
 
         return `
         <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
@@ -136,22 +136,22 @@ function renderEventBindings() {
             <td class="py-3 px-4 whitespace-nowrap">
                 <button onclick="openBindingModal('${escHtml(row.event_type)}')"
                     class="text-primary hover:text-white text-sm transition-colors mr-3">
-                    <i class="fa fa-pencil mr-1"></i>编辑
+                    <i class="fa fa-pencil mr-1"></i>Edit
                 </button>
                 ${hasBind ? `<button onclick="clearBinding('${escHtml(row.event_type)}')"
                     class="text-red-400 hover:text-white text-sm transition-colors">
-                    <i class="fa fa-trash mr-1"></i>清除
+                    <i class="fa fa-trash mr-1"></i>Clear
                 </button>` : ''}
             </td>
         </tr>`;
     }).join('');
 }
 
-// ── 热加载插件 ────────────────────────────────────────────────────────
+// ── Reload plugins ────────────────────────────────────────────────────────
 async function reloadPlugins() {
     const btn = document.getElementById('reloadPluginsBtn');
     btn.disabled = true;
-    btn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>加载中...';
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>Loading...';
     try {
         const res = await apiPost('/index/pyapi/plugin/reload', {});
         if (res.code === 0) {
@@ -159,17 +159,17 @@ async function reloadPlugins() {
             await loadPluginList();
             await loadEventBindings();
         } else {
-            showToast(res.msg || '热加载失败', 'error');
+            showToast(res.msg || 'Reload failed', 'error');
         }
     } catch (e) {
         showToast(e.message, 'error');
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fa fa-refresh mr-2"></i>热加载插件';
+        btn.innerHTML = '<i class="fa fa-refresh mr-2"></i>Reload plugins';
     }
 }
 
-// ── 编辑绑定弹窗 ───────────────────────────────────────────────────────
+// ── Edit binding modal ───────────────────────────────────────────────────────
 function openBindingModal(eventType) {
     _editEvent        = eventType;
     _editParams       = {};
@@ -182,7 +182,7 @@ function openBindingModal(eventType) {
     const enabled  = curBinds.some(b => b.enabled) || curBinds.length === 0;
     document.getElementById('bindingEnabled').checked = enabled;
 
-    // 构建已绑定列表数据并初始化参数
+    // Build bound-list data and init params
     const matched = _allPlugins.filter(p => p.type === eventType);
     curBinds.forEach((b, i) => {
         const plugin = matched.find(p => p.name === b.plugin_name);
@@ -201,7 +201,7 @@ function closeBindingModal() {
     _editEvent = null;
 }
 
-// ── 渲染两个列表（数据驱动）─────────────────────────────────────────
+// ── Render both lists (data-driven)─────────────────────────────────────────
 function _renderBindingLists() {
     _renderSelectedList();
     _renderAvailableList();
@@ -210,17 +210,17 @@ function _renderBindingLists() {
 function _renderSelectedList() {
     const container = document.getElementById('selectedPlugins');
     if (!_selectedBindings.length) {
-        container.innerHTML = `<div class="text-white/30 text-xs text-center py-3 select-none" data-hint="1">（拖入插件以绑定）</div>`;
+        container.innerHTML = `<div class="text-white/30 text-xs text-center py-3 select-none" data-hint="1">(Drag plugins here to bind)</div>`;
         return;
     }
-    // 统计每个插件出现次数，用于显示序号
+    // Count occurrences of each plugin, for index numbering
     const nameCounters = {};
     container.innerHTML = _selectedBindings.map((item, idx) => {
         const p = _allPlugins.find(pl => pl.name === item.pluginName);
         if (!p) return '';
         const typeBadge = p.interruptible
-            ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">拦截</span>`
-            : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400">监听</span>`;
+            ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">Intercept</span>`
+            : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400">Listen</span>`;
         nameCounters[p.name] = (nameCounters[p.name] || 0) + 1;
         const idxBadge = p.multi_binding
             ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white/50 font-mono">#${nameCounters[p.name]}</span>`
@@ -238,11 +238,11 @@ function _renderSelectedList() {
             ${idxBadge}${typeBadge}
             <span class="text-white/40 text-xs truncate max-w-[120px]" title="${escHtml(p.description)}">${escHtml(p.description)}</span>
             <button type="button" onclick="openParamsModal('${escHtml(item.paramKey)}')"
-                class="ml-auto shrink-0 text-yellow-400/70 hover:text-yellow-400 transition-colors text-xs" title="编辑绑定参数">
-                <i class="fa fa-cog mr-1"></i>参数
+                class="ml-auto shrink-0 text-yellow-400/70 hover:text-yellow-400 transition-colors text-xs" title="Edit binding params">
+                <i class="fa fa-cog mr-1"></i>Params
             </button>
             <button type="button" onclick="_removeSelected(${idx})"
-                class="shrink-0 text-white/30 hover:text-red-400 transition-colors text-xs" title="移除">
+                class="shrink-0 text-white/30 hover:text-red-400 transition-colors text-xs" title="Remove">
                 <i class="fa fa-times"></i>
             </button>
         </div>`;
@@ -253,7 +253,7 @@ function _renderAvailableList() {
     const container = document.getElementById('availablePlugins');
     if (!_editEvent) return;
     const matched = _allPlugins.filter(p => p.type === _editEvent);
-    // 非 multi_binding 已绑定的排除
+    // Exclude already-bound for non-multi_binding
     const boundNames = new Set(_selectedBindings
         .filter(b => {
             const p = _allPlugins.find(pl => pl.name === b.pluginName);
@@ -263,15 +263,15 @@ function _renderAvailableList() {
     const available = matched.filter(p => !boundNames.has(p.name));
 
     if (!available.length) {
-        container.innerHTML = `<div class="text-white/30 text-xs text-center py-3 select-none" data-hint="1">（无可用插件）</div>`;
+        container.innerHTML = `<div class="text-white/30 text-xs text-center py-3 select-none" data-hint="1">(No available plugins)</div>`;
         return;
     }
     container.innerHTML = available.map(p => {
         const typeBadge = p.interruptible
-            ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">拦截</span>`
-            : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400">监听</span>`;
+            ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">Intercept</span>`
+            : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400">Listen</span>`;
         const multiBadge = p.multi_binding
-            ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400">可多绑</span>`
+            ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400">Multi-bind</span>`
             : '';
         return `
         <div class="flex items-center gap-2 bg-white/5 border border-dashed border-white/10 rounded-lg px-3 py-2 cursor-grab select-none hover:bg-white/10 transition-colors"
@@ -287,20 +287,20 @@ function _renderAvailableList() {
     }).join('');
 }
 
-// ── 添加插件到已绑定 ──────────────────────────────────────────────────
+// ── Add plugin to bound ──────────────────────────────────────────────────
 function _addPlugin(pluginName) {
     const plugin = _allPlugins.find(p => p.name === pluginName);
     if (!plugin) return;
-    // 非 multi_binding 检查重复
+    // Check duplicates for non-multi_binding
     if (!plugin.multi_binding && _selectedBindings.some(b => b.pluginName === pluginName)) {
-        showToast(`插件 "${pluginName}" 不支持多次绑定`, 'warning');
+        showToast(`Plugin "${pluginName}" does not support multiple bindings`, 'warning');
         return;
     }
-    // 生成 paramKey
+    // Generate paramKey
     const count = _selectedBindings.filter(b => b.pluginName === pluginName).length;
     const paramKey = plugin.multi_binding ? `${pluginName}#${count}` : pluginName;
     if (!_editParams[paramKey]) {
-        // 用 schema 默认值初始化
+        // Init with schema default values
         const schema = plugin.params_schema || {};
         _editParams[paramKey] = {};
         Object.entries(schema).forEach(([k, def]) => {
@@ -311,13 +311,13 @@ function _addPlugin(pluginName) {
     _renderBindingLists();
 }
 
-// ── 从已绑定移除 ──────────────────────────────────────────────────────
+// ── Remove from bound ──────────────────────────────────────────────────────
 function _removeSelected(idx) {
     _selectedBindings.splice(idx, 1);
     _renderBindingLists();
 }
 
-// ── 已绑定列表拖拽排序 ────────────────────────────────────────────────
+// ── Drag-reorder the bound list ────────────────────────────────────────────────
 let _selDragIdx = null;
 function _selDragStart(e, idx) {
     _selDragIdx = idx;
@@ -333,7 +333,7 @@ function _selDrop(e, targetIdx) {
     _renderSelectedList();
 }
 
-// ── 可用列表拖入已绑定区域 ────────────────────────────────────────────
+// ── Drag from available list into the bound area ────────────────────────────────────────────
 let _availDragName = null;
 function _availDragStart(e, pluginName) {
     _availDragName = pluginName;
@@ -348,23 +348,23 @@ function dropPlugin(e, targetArea) {
             _addPlugin(_availDragName);
             _availDragName = null;
         } else if (_selDragIdx !== null) {
-            // 已绑定区域内部排序在 _selDrop 处理，这里忽略
+            // Internal sorting of the bound area handled in _selDrop , ignored here
             _selDragIdx = null;
         }
     }
-    // 拖到 available 区域不处理
+    // Dragged to  available  area, not handled
 }
 
-// ── 保留旧的 renderDragList（兼容，但不再用于选中列表）──────────────
+// ── Keep old  renderDragList(compat, no longer used for the selected list)──────────────
 function renderDragList(containerId, plugins, showParamsBtn) {
-    // 仅用于可用列表的初始渲染，现已由 _renderAvailableList 替代，保留空实现防报错
+    // Only for initial rendering of the available list, now replaced by _renderAvailableList , empty implementation kept to avoid errors
 }
 
 function renderSelectedList() {
-    // 由 _renderSelectedList 替代，保留空实现
+    // By  _renderSelectedList , empty implementation kept
 }
 
-// ── 以下旧函数保留空实现，防止其他地方调用报错 ────────────────────────
+// ── The old functions below keep empty implementations to avoid errors when called elsewhere ────────────────────────
 function togglePluginBinding() {}
 function _addToSelected() {}
 function _refreshEmptyHint() {}
@@ -372,7 +372,7 @@ function _refreshSelectedBadges() {}
 function dragStart(e) { e.currentTarget.classList.add('opacity-50'); }
 function dragEnd(e)   { e.currentTarget.classList.remove('opacity-50'); }
 
-// ── 保存绑定 ──────────────────────────────────────────────────────────
+// ── Save binding ──────────────────────────────────────────────────────────
 async function saveBinding() {
     if (!_editEvent) return;
     const enabled = document.getElementById('bindingEnabled').checked ? 1 : 0;
@@ -389,30 +389,30 @@ async function saveBinding() {
         });
         if
  (res.code === 0) {
-            showToast('保存成功', 'success');
+            showToast('Saved', 'success');
             closeBindingModal();
             await loadEventBindings();
         } else {
-            showToast(res.msg || '保存失败', 'error');
+            showToast(res.msg || 'Save failed', 'error');
         }
     } catch (e) {
         showToast(e.message, 'error');
     }
 }
 
-// ── 清除绑定 ──────────────────────────────────────────────────────────
+// ── Clear bindings ──────────────────────────────────────────────────────────
 async function clearBinding(eventType) {
     showConfirmModal(
-        '清除插件绑定',
-        `确定清除 <span class="text-primary font-mono">${eventType}</span> 的所有插件绑定？`,
+        'Clear plugin bindings',
+        `Are you sure you want to clear all plugin bindings for <span class="text-primary font-mono">${eventType}</span> ?`,
         async () => {
             try {
                 const res = await apiPost('/index/pyapi/plugin/bindings/delete', { event_type: eventType });
                 if (res.code === 0) {
-                    showToast('已清除', 'success');
+                    showToast('Cleared', 'success');
                     await loadEventBindings();
                 } else {
-                    showToast(res.msg || '清除失败', 'error');
+                    showToast(res.msg || 'Clear failed', 'error');
                 }
             } catch (e) {
                 showToast(e.message, 'error');
@@ -421,8 +421,8 @@ async function clearBinding(eventType) {
     );
 }
 
-// ── 参数编辑弹窗 ───────────────────────────────────────────────────────
-// 缓存协议配置列表
+// ── Params edit modal ───────────────────────────────────────────────────────
+// Cache protocol config list
 let _protocolOptionsList = null;
 
 async function _loadProtocolOptionsList() {
@@ -436,58 +436,58 @@ async function _loadProtocolOptionsList() {
     return _protocolOptionsList;
 }
 
-// protocol_option 字段分组（与协议预设界面保持一致）
+// protocol_option field groups (consistent with the protocol preset UI)
 const _PROTO_GROUPS = [
     {
-        title: '通用配置',
+        title: 'General config',
         cols: 2,
         fields: [
-            { key: 'modify_stamp',    id: 'po_modify_stamp',    label: '时间戳覆盖(modify_stamp)',        type: 'select', opts: [['0','0-绝对'],['1','1-系统'],['2','2-相对']] },
-            { key: 'enable_audio',    id: 'po_enable_audio',    label: '开启音频(enable_audio)',          type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
-            { key: 'add_mute_audio',  id: 'po_add_mute_audio',  label: '添加静音音频(add_mute_audio)',    type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
-            { key: 'auto_close',      id: 'po_auto_close',      label: '自动关闭(auto_close)',            type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
-            { key: 'paced_sender_ms', id: 'po_paced_sender_ms', label: '平滑发送间隔ms(paced_sender_ms)', type: 'number' },
+            { key: 'modify_stamp',    id: 'po_modify_stamp',    label: 'Timestamp override(modify_stamp)',        type: 'select', opts: [['0','0-Absolute'],['1','1-System'],['2','2-Relative']] },
+            { key: 'enable_audio',    id: 'po_enable_audio',    label: 'Enable audio(enable_audio)',          type: 'select', opts: [['1','1-On'],['0','0-Off']] },
+            { key: 'add_mute_audio',  id: 'po_add_mute_audio',  label: 'Add silent audio(add_mute_audio)',    type: 'select', opts: [['1','1-On'],['0','0-Off']] },
+            { key: 'auto_close',      id: 'po_auto_close',      label: 'Auto close(auto_close)',            type: 'select', opts: [['1','1-On'],['0','0-Off']] },
+            { key: 'paced_sender_ms', id: 'po_paced_sender_ms', label: 'Paced sender interval ms(paced_sender_ms)', type: 'number' },
         ],
     },
     {
-        title: '转协议开关',
+        title: 'Remux toggles',
         cols: 3,
         fields: [
-            { key: 'enable_hls',      id: 'po_enable_hls',      label: '开启HLS(enable_hls)',            type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
-            { key: 'enable_hls_fmp4', id: 'po_enable_hls_fmp4', label: '开启HLS-FMP4(enable_hls_fmp4)',  type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
-            { key: 'enable_mp4',      id: 'po_enable_mp4',      label: '开启MP4录制(enable_mp4)',         type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
-            { key: 'enable_rtsp',     id: 'po_enable_rtsp',     label: '开启RTSP(enable_rtsp)',           type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
-            { key: 'enable_rtmp',     id: 'po_enable_rtmp',     label: '开启RTMP/FLV(enable_rtmp)',       type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
-            { key: 'enable_ts',       id: 'po_enable_ts',       label: '开启HTTP-TS(enable_ts)',          type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
-            { key: 'enable_fmp4',     id: 'po_enable_fmp4',     label: '开启FMP4(enable_fmp4)',           type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
+            { key: 'enable_hls',      id: 'po_enable_hls',      label: 'Enable HLS(enable_hls)',            type: 'select', opts: [['1','1-On'],['0','0-Off']] },
+            { key: 'enable_hls_fmp4', id: 'po_enable_hls_fmp4', label: 'Enable HLS-FMP4(enable_hls_fmp4)',  type: 'select', opts: [['1','1-On'],['0','0-Off']] },
+            { key: 'enable_mp4',      id: 'po_enable_mp4',      label: 'Enable MP4 recording(enable_mp4)',         type: 'select', opts: [['1','1-On'],['0','0-Off']] },
+            { key: 'enable_rtsp',     id: 'po_enable_rtsp',     label: 'Enable RTSP(enable_rtsp)',           type: 'select', opts: [['1','1-On'],['0','0-Off']] },
+            { key: 'enable_rtmp',     id: 'po_enable_rtmp',     label: 'Enable RTMP/FLV(enable_rtmp)',       type: 'select', opts: [['1','1-On'],['0','0-Off']] },
+            { key: 'enable_ts',       id: 'po_enable_ts',       label: 'Enable HTTP-TS(enable_ts)',          type: 'select', opts: [['1','1-On'],['0','0-Off']] },
+            { key: 'enable_fmp4',     id: 'po_enable_fmp4',     label: 'Enable FMP4(enable_fmp4)',           type: 'select', opts: [['1','1-On'],['0','0-Off']] },
         ],
     },
     {
-        title: '按需转协议开关',
+        title: 'On-demand remux toggles',
         cols: 3,
         fields: [
-            { key: 'hls_demand',  id: 'po_hls_demand',  label: 'HLS按需(hls_demand)',   type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
-            { key: 'rtsp_demand', id: 'po_rtsp_demand', label: 'RTSP按需(rtsp_demand)',  type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
-            { key: 'rtmp_demand', id: 'po_rtmp_demand', label: 'RTMP按需(rtmp_demand)',  type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
-            { key: 'ts_demand',   id: 'po_ts_demand',   label: 'TS按需(ts_demand)',      type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
-            { key: 'fmp4_demand', id: 'po_fmp4_demand', label: 'FMP4按需(fmp4_demand)',  type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
+            { key: 'hls_demand',  id: 'po_hls_demand',  label: 'HLS on-demand(hls_demand)',   type: 'select', opts: [['1','1-On'],['0','0-Off']] },
+            { key: 'rtsp_demand', id: 'po_rtsp_demand', label: 'RTSP on-demand(rtsp_demand)',  type: 'select', opts: [['1','1-On'],['0','0-Off']] },
+            { key: 'rtmp_demand', id: 'po_rtmp_demand', label: 'RTMP on-demand(rtmp_demand)',  type: 'select', opts: [['1','1-On'],['0','0-Off']] },
+            { key: 'ts_demand',   id: 'po_ts_demand',   label: 'TS on-demand(ts_demand)',      type: 'select', opts: [['1','1-On'],['0','0-Off']] },
+            { key: 'fmp4_demand', id: 'po_fmp4_demand', label: 'FMP4 on-demand(fmp4_demand)',  type: 'select', opts: [['1','1-On'],['0','0-Off']] },
         ],
     },
     {
-        title: '录制配置',
+        title: 'Recording config',
         cols: 2,
         fields: [
-            { key: 'mp4_as_player',  id: 'po_mp4_as_player',  label: 'MP4计入观看数(mp4_as_player)', type: 'select', opts: [['1','1-开启'],['0','0-关闭']] },
-            { key: 'mp4_max_second', id: 'po_mp4_max_second', label: 'MP4切片大小s(mp4_max_second)',  type: 'number' },
-            { key: 'mp4_save_path',  id: 'po_mp4_save_path',  label: 'MP4保存路径(mp4_save_path)',    type: 'text'   },
-            { key: 'hls_save_path',  id: 'po_hls_save_path',  label: 'HLS保存路径(hls_save_path)',    type: 'text'   },
+            { key: 'mp4_as_player',  id: 'po_mp4_as_player',  label: 'MP4 counts toward viewers(mp4_as_player)', type: 'select', opts: [['1','1-On'],['0','0-Off']] },
+            { key: 'mp4_max_second', id: 'po_mp4_max_second', label: 'MP4 segment size (sec)(mp4_max_second)',  type: 'number' },
+            { key: 'mp4_save_path',  id: 'po_mp4_save_path',  label: 'MP4 save path(mp4_save_path)',    type: 'text'   },
+            { key: 'hls_save_path',  id: 'po_hls_save_path',  label: 'HLS save path(hls_save_path)',    type: 'text'   },
         ],
     },
 ];
-// 扁平化字段列表（供读值/遍历使用）
+// Flattened field list (for reading values/ and iteration)
 const _PROTO_FIELDS = _PROTO_GROUPS.flatMap(g => g.fields);
 
-// 从协议配置表单 DOM 读取当前值（只收集非空字段）
+// From the protocol config form  DOM read current values (only non-empty fields collected)
 function _readProtoFormValues() {
     const result = {};
     _PROTO_FIELDS.forEach(f => {
@@ -497,7 +497,7 @@ function _readProtoFormValues() {
     return result;
 }
 
-// 渲染 protocol_option 内嵌表单（分组布局，与协议预设界面一致）
+// Render protocol_option embedded form (grouped layout, consistent with the protocol preset UI)
 function _renderProtoOptionForm(paramKey, currentVal) {
     const cur = (currentVal && typeof currentVal === 'object') ? currentVal : {};
     const sel = (k, v) => cur[k] !== undefined && String(cur[k]) === v ? 'selected' : '';
@@ -507,11 +507,11 @@ function _renderProtoOptionForm(paramKey, currentVal) {
 
     const makeSelect = (f) => `
         <select id="${f.id}" class="${inCls}" style="color:white;" onchange="_syncProtoForm('${pk}')">
-            <option value="" ${selEmpty(f.key)}>默认</option>
+            <option value="" ${selEmpty(f.key)}>Default</option>
             ${f.opts.map(([v, l]) => `<option value="${v}" ${sel(f.key, v)}>${l}</option>`).join('')}
         </select>`;
     const makeInput = (f) => `
-        <input type="${f.type}" id="${f.id}" value="${escHtml(String(cur[f.key] ?? ''))}" placeholder="默认"
+        <input type="${f.type}" id="${f.id}" value="${escHtml(String(cur[f.key] ?? ''))}" placeholder="Default"
             class="${inCls}" oninput="_syncProtoForm('${pk}')">`;
 
     const groupsHtml = _PROTO_GROUPS.map(g => {
@@ -530,33 +530,33 @@ function _renderProtoOptionForm(paramKey, currentVal) {
 
     return `
     <div class="mt-2 border border-white/10 rounded-lg overflow-hidden">
-        <!-- 工具栏 -->
+        <!-- Toolbar -->
         <div class="flex gap-2 px-3 py-2 bg-white/5 border-b border-white/10">
             <button type="button" onclick="_poLoadDefault('${pk}')"
                 class="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white/80 transition-colors">
-                <i class="fa fa-magic mr-1"></i>加载默认
+                <i class="fa fa-magic mr-1"></i>Load defaults
             </button>
             <button type="button" onclick="_poLoadPreset('${pk}')"
                 class="text-xs px-2 py-1 rounded bg-primary/30 hover:bg-primary/50 text-white transition-colors">
-                <i class="fa fa-list mr-1"></i>从预设加载
+                <i class="fa fa-list mr-1"></i>Load from preset
             </button>
             <button type="button" onclick="_poClear('${pk}')"
                 class="text-xs px-2 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-colors">
-                <i class="fa fa-eraser mr-1"></i>清空
+                <i class="fa fa-eraser mr-1"></i>Clear
             </button>
         </div>
-        <!-- 分组内容 -->
+        <!-- Group content -->
         <div class="space-y-2 p-3">${groupsHtml}</div>
     </div>`;
 }
 
-// 表单任意字段变化后同步回 _editParams
+// Sync back to _editParams after any field change _editParams
 function _syncProtoForm(paramKey) {
     if (!_editParams[_paramsPlugin]) _editParams[_paramsPlugin] = {};
     _editParams[_paramsPlugin][paramKey] = _readProtoFormValues();
 }
 
-// 加载默认（从服务器 protocol.* 配置）
+// Load defaults (from server  protocol.*  config)
 async function _poLoadDefault(paramKey) {
     try {
         const result = await Api.getServerConfig();
@@ -568,23 +568,23 @@ async function _poLoadDefault(paramKey) {
                 if (el && v !== undefined && v !== null) el.value = String(v);
             });
             _syncProtoForm(paramKey);
-            showToast('已加载服务器默认协议配置', 'success');
+            showToast('Loaded server default protocol config', 'success');
         } else {
-            showToast('获取服务器配置失败', 'error');
+            showToast('Failed to get server config', 'error');
         }
     } catch (e) {
-        showToast('加载失败: ' + e.message, 'error');
+        showToast('Load failed: ' + e.message, 'error');
     }
 }
 
-// 从预设加载
+// Load from preset
 async function _poLoadPreset(paramKey) {
     const list = await _loadProtocolOptionsList();
     if (!list || !list.length) {
-        showToast('暂无可用预设，请先在「协议配置」中添加', 'warning');
+        showToast('No presets available. Add one under "Protocol Config" first', 'warning');
         return;
     }
-    // 弹出预设选择器
+    // Show preset selector
     let picker = document.getElementById('_poPresetPicker');
     if (picker) picker.remove();
     picker = document.createElement('div');
@@ -593,18 +593,18 @@ async function _poLoadPreset(paramKey) {
     picker.innerHTML = `
         <div class="bg-gray-900 rounded-xl p-6 max-w-sm w-full mx-4 border border-white/20" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-base font-bold text-white">选择协议预设</h3>
+                <h3 class="text-base font-bold text-white">Select protocol preset</h3>
                 <button onclick="document.getElementById('_poPresetPicker').remove()" class="text-white/50 hover:text-white text-xl leading-none">&times;</button>
             </div>
             <select id="_poPresetSelect" class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm mb-4 focus:outline-none">
-                <option value="">-- 请选择预设 --</option>
+                <option value="">-- Select preset --</option>
                 ${list.map(p => `<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}
             </select>
             <div class="flex justify-end gap-3">
                 <button onclick="document.getElementById('_poPresetPicker').remove()"
-                    class="px-4 py-2 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20 transition-colors">取消</button>
+                    class="px-4 py-2 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20 transition-colors">Cancel</button>
                 <button onclick="_poApplyPreset('${escHtml(paramKey)}')"
-                    class="px-4 py-2 rounded-lg bg-primary text-white text-sm hover:bg-primary/80 transition-colors">确定</button>
+                    class="px-4 py-2 rounded-lg bg-primary text-white text-sm hover:bg-primary/80 transition-colors">OK</button>
             </div>
         </div>`;
     picker.addEventListener('click', e => { if (e.target === picker) picker.remove(); });
@@ -613,37 +613,37 @@ async function _poLoadPreset(paramKey) {
 
 async function _poApplyPreset(paramKey) {
     const sel = document.getElementById('_poPresetSelect');
-    if (!sel || !sel.value) { showToast('请先选择一个预设', 'warning'); return; }
+    if (!sel || !sel.value) { showToast('Please select a preset first', 'warning'); return; }
     try {
         const res = await apiGet(`/index/pyapi/get_protocol_options?id=${sel.value}`);
         const p = res.data || res;
-        if (!p) { showToast('获取预设详情失败', 'error'); return; }
+        if (!p) { showToast('Failed to get preset details', 'error'); return; }
         _PROTO_FIELDS.forEach(f => {
             const el = document.getElementById(f.id);
             if (el && p[f.key] !== undefined && p[f.key] !== null) el.value = String(p[f.key]);
         });
         _syncProtoForm(paramKey);
         document.getElementById('_poPresetPicker')?.remove();
-        showToast('已从预设加载协议配置', 'success');
+        showToast('Loaded protocol config from preset', 'success');
     } catch (e) {
-        showToast('加载失败: ' + e.message, 'error');
+        showToast('Load failed: ' + e.message, 'error');
     }
 }
 
-// 清空所有字段
+// Clear all fields
 function _poClear(paramKey) {
     _PROTO_FIELDS.forEach(f => {
         const el = document.getElementById(f.id);
         if (el) el.value = '';
     });
     _syncProtoForm(paramKey);
-    showToast('协议配置已清空', 'info');
+    showToast('Protocol config cleared', 'info');
 }
 
 async function openParamsModal(paramKey) {
-    _paramsPlugin = paramKey;  // 用 paramKey 作为内部标识（可能含 #N）
+    _paramsPlugin = paramKey;  // Use paramKey as internal id (may contain #N)
     _paramsEvent  = _editEvent;
-    // 显示时去掉 #N 后缀只展示插件名
+    // Strip  #N  suffix, show plugin name only
     const pluginName = paramKey.includes('#') ? paramKey.split('#')[0] : paramKey;
     const instanceNum = paramKey.includes('#') ? parseInt(paramKey.split('#')[1]) + 1 : null;
     const displayName = instanceNum ? `${pluginName} <span class="text-white/40 font-normal text-sm">#${instanceNum}</span>` : pluginName;
@@ -659,7 +659,7 @@ async function openParamsModal(paramKey) {
         }
     });
 
-    // 有 protocol_option 字段时预加载预设列表
+    // Preload preset list when protocol_option fields exist
     const hasProtoOpt = Object.values(schema).some(d => d.type === 'protocol_option');
     if (hasProtoOpt) await _loadProtocolOptionsList();
 
@@ -675,14 +675,14 @@ function closeParamsModal() {
 function renderParamsList() {
     const params    = _editParams[_paramsPlugin] || {};
     const container = document.getElementById('paramsList');
-    // _paramsPlugin 可能是 name#N，取真实插件名
+    // _paramsPlugin may be  name#N, take the real plugin name
     const pluginName = _paramsPlugin.includes('#') ? _paramsPlugin.split('#')[0] : _paramsPlugin;
     const plugin    = _allPlugins.find(p => p.name === pluginName);
     const schema    = plugin?.params_schema || {};
     const keys      = Object.keys(schema);
 
     if (!keys.length) {
-        container.innerHTML = `<div class="text-white/30 text-sm text-center py-4">此插件无可配置参数</div>`;
+        container.innerHTML = `<div class="text-white/30 text-sm text-center py-4">This plugin has no configurable parameters</div>`;
         return;
     }
 
@@ -711,7 +711,7 @@ function renderParamsList() {
                         after:bg-white after:border-gray-300 after:border after:rounded-full
                         after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                 </label>
-                <span class="text-white/60 text-xs" id="param_bool_label_${escHtml(k)}">${val === true || val === 'true' || val === 1 ? '开启' : '关闭'}</span>
+                <span class="text-white/60 text-xs" id="param_bool_label_${escHtml(k)}">${val === true || val === 'true' || val === 1 ? 'On' : 'Off'}</span>
             </div>`;
         } else {
             inputEl = `
@@ -735,25 +735,25 @@ function renderParamsList() {
 
 function updateParamValue(key, value) {
     if (!_editParams[_paramsPlugin]) _editParams[_paramsPlugin] = {};
-    // bool 类型保存为 boolean
+    // bool type saved as boolean
     const pluginName = _paramsPlugin.includes('#') ? _paramsPlugin.split('#')[0] : _paramsPlugin;
     const plugin = _allPlugins.find(p => p.name === pluginName);
     const schema = plugin?.params_schema || {};
     if (schema[key]?.type === 'bool') {
         _editParams[_paramsPlugin][key] = !!value;
         const lbl = document.getElementById(`param_bool_label_${key}`);
-        if (lbl) lbl.textContent = value ? '开启' : '关闭';
+        if (lbl) lbl.textContent = value ? 'On' : 'Off';
     } else {
         _editParams[_paramsPlugin][key] = value;
     }
 }
 
 function saveParams() {
-    showToast('参数已更新（保存绑定后生效）', 'success');
+    showToast('Parameters updated (takes effect after saving the binding)', 'success');
     closeParamsModal();
 }
 
-// ── 工具 ──────────────────────────────────────────────────────────────
+// ── Tools ──────────────────────────────────────────────────────────────
 function escHtml(str) {
     return String(str ?? '')
         .replace(/&/g, '&amp;')
