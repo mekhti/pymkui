@@ -1,14 +1,14 @@
 """
-FFmpeg 转码插件（on_media_changed）
+FFmpeg transcoding plugin (on_media_changed)
 
-当媒体源注册（上线）时，启动 FFmpeg 进程进行转码；
-当媒体源注销（下线）时，停止 FFmpeg 进程。
+When a media source registers (comes online), start an FFmpeg process to transcode;
+When a media source unregisters (goes offline), stop the FFmpeg process.
 
-支持：
-  - 自定义 FFmpeg 命令行参数
-  - vhost / app / stream 来源过滤（支持通配符 *）
-  - 命令行参数变量替换：{vhost} {app} {stream}
-  - multi_binding=True：可多次绑定，每实例使用不同的转码参数
+Supports:
+  - Custom FFmpeg command-line arguments
+  - vhost / app / stream source filtering (wildcard * supported)
+  - Command-line argument variable substitution: {vhost} {app} {stream}
+  - multi_binding=True: can bind multiple times, each instance using different transcoding params
 """
 
 import fnmatch
@@ -21,57 +21,57 @@ import mk_logger
 from py_plugin import PluginBase
 
 
-# ── 全局转码进程状态表 ────────────────────────────────────────────────────
-# state_key → FFmpeg 进程对象
+# ── Global transcoding-process state table ────────────────────────────────────────────────────
+# state_key → FFmpeg process object
 _transcoder_processes: dict = {}
 _lock = threading.Lock()
 
 
-# ── 插件类 ────────────────────────────────────────────────────────────
+# ── Plugin class ────────────────────────────────────────────────────────────
 
 class FFMpegTranscoder(PluginBase):
     name        = "ffmpeg_transcoder"
     version     = "1.0.0"
     description = (
-        "FFmpeg 转码插件（on_media_changed）。"
-        "流上线时启动 FFmpeg 进程进行转码，"
-        "流下线时停止 FFmpeg 进程。"
-        "支持自定义命令行参数，支持 {vhost}/{app}/{stream} 变量替换。"
+        "FFmpeg transcoding plugin (on_media_changed)."
+        "Starts an FFmpeg process to transcode when the stream comes online, "
+        "stops the FFmpeg process when the stream goes offline."
+        "Supports custom command-line arguments and {vhost}/{app}/{stream} variable substitution."
     )
     type          = "on_media_changed"
-    interruptible = False   # 监听型：不拦截事件，继续派发后续插件
-    multi_binding = True    # 支持多实例，每实例使用不同的转码参数
+    interruptible = False   # listening type: doesn't intercept events, continues dispatching to subsequent plugins
+    multi_binding = True    # supports multiple instances, each using different transcoding params
 
     def params(self) -> dict:
         return {
             "ffmpeg_cmd": {
                 "type": "str",
                 "description": (
-                    "FFmpeg 命令行参数，支持变量：{vhost} {app} {stream}，"
-                    "例如：-i rtsp://localhost:554/{app}/{stream} -c:v libx264 -c:a aac -f flv rtmp://localhost/live/{stream}_transcoded"
+                    "FFmpeg command-line arguments; supported variables: {vhost} {app} {stream}, "
+                    "e.g.: -i rtsp://localhost:554/{app}/{stream} -c:v libx264 -c:a aac -f flv rtmp://localhost/live/{stream}_transcoded"
                 ),
                 "default": "",
             },
             "vhost_filter": {
                 "type": "str",
-                "description": "来源 vhost 过滤，支持通配符 *，默认匹配所有",
+                "description": "Source vhost filter; wildcard * supported; matches all by default",
                 "default": "*",
             },
             "app_filter": {
                 "type": "str",
-                "description": "来源 app 过滤，支持通配符 *，默认匹配所有",
+                "description": "Source app filter; wildcard * supported; matches all by default",
                 "default": "*",
             },
             "stream_filter": {
                 "type": "str",
-                "description": "来源 stream 过滤，支持通配符 *，默认匹配所有",
+                "description": "Source stream filter; wildcard * supported; matches all by default",
                 "default": "*",
             },
             "schema_filter": {
                 "type": "str",
                 "description": (
-                    "只对指定来源协议触发，多个用英文逗号分隔，"
-                    "例如 rtsp,rtmp。空则匹配所有协议。"
+                    "Triggers only for the specified source protocols; separate multiple with commas; "
+                    "e.g. rtsp,rtmp. Empty matches all protocols."
                 ),
                 "default": "",
             },
@@ -85,7 +85,7 @@ class FFMpegTranscoder(PluginBase):
         if sender is None:
             return False
 
-        # 同步获取来源流信息（sender是临时对象，不可在异步协程中引用）
+        # Synchronously get source stream info (sender is a temporary object, can't be referenced in async coroutines)
         try:
             src_schema = sender.getSchema()
             mt     = sender.getMediaTuple()
@@ -93,10 +93,10 @@ class FFMpegTranscoder(PluginBase):
             app    = mt.app
             stream = mt.stream
         except Exception as e:
-            mk_logger.log_warn(f"[ffmpeg_transcoder] 获取流信息异常: {e}")
+            mk_logger.log_warn(f"[ffmpeg_transcoder] Exception getting stream info: {e}")
             return False
 
-        # 读取绑定参数（优先实例参数，缺省取 params() 默认值）
+        # Read binding params (instance params take priority; fall back to params() defaults)
         p = self.params()
         def _get(key):
             return binding_params.get(key, p[key]["default"])
@@ -110,7 +110,7 @@ class FFMpegTranscoder(PluginBase):
         if not ffmpeg_cmd:
             return False
 
-        # ── 来源过滤 ──
+        # ── Source filtering ──
         if not fnmatch.fnmatch(vhost,  vhost_filter):  return False
         if not fnmatch.fnmatch(app,    app_filter):    return False
         if not fnmatch.fnmatch(stream, stream_filter): return False
@@ -119,57 +119,57 @@ class FFMpegTranscoder(PluginBase):
             if allowed and src_schema.lower() not in allowed:
                 return False
 
-        # ── 变量替换生成实际命令行 ──
-        # 获取FFmpeg可执行文件路径
+        # ── Variable substitution to generate the actual command line ──
+        # Get the FFmpeg executable path
         ffmpeg_bin = mk_loader.get_config('ffmpeg.bin') or 'ffmpeg'
-        # 生成完整命令
+        # Build the full command
         cmd = f"{ffmpeg_bin} {ffmpeg_cmd}"
-        # 变量替换
+        # Variable substitution
         cmd = (cmd
                .replace("{vhost}",  vhost)
                .replace("{app}",    app)
                .replace("{stream}", stream))
 
-        # 状态 key：命令模板 + 流标识，唯一标识一个转码任务
+        # State key: command template + stream identifier, uniquely identifying one transcoding task
         state_key = f"{ffmpeg_cmd}|{vhost}|{app}|{stream}"
 
         if is_register:
             with _lock:
                 if state_key in _transcoder_processes:
                     mk_logger.log_info(
-                        f"[ffmpeg_transcoder] 转码进程已存在，跳过重复启动 "
+                        f"[ffmpeg_transcoder] Transcoding process already exists, skipping duplicate start "
                         f"{vhost}/{app}/{stream}"
                     )
                     return False
 
-            # 启动 FFmpeg 进程
+            # Start the FFmpeg process
             try:
-                # 使用 shell=True 来执行完整的命令行
+                # Use shell=True to execute the full command line
                 process = subprocess.Popen(cmd, shell=True, preexec_fn=os.setsid)
                 with _lock:
                     _transcoder_processes[state_key] = process
                 mk_logger.log_info(
-                    f"[ffmpeg_transcoder] 转码进程已启动 {vhost}/{app}/{stream} → 命令: {cmd}"
+                    f"[ffmpeg_transcoder] Transcoding process started {vhost}/{app}/{stream} → command: {cmd}"
                 )
             except Exception as e:
-                mk_logger.log_warn(f"[ffmpeg_transcoder] 启动转码进程失败: {e}")
+                mk_logger.log_warn(f"[ffmpeg_transcoder] Failed to start transcoding process: {e}")
         else:
             with _lock:
                 process = _transcoder_processes.pop(state_key, None)
             if process:
                 try:
-                    # 终止进程组，确保所有子进程都被终止
+                    # Terminate the process group to ensure all child processes are killed
                     os.killpg(os.getpgid(process.pid), signal.SIGTERM)
                     process.wait(timeout=5)
                     mk_logger.log_info(
-                        f"[ffmpeg_transcoder] 转码进程已停止 {vhost}/{app}/{stream}"
+                        f"[ffmpeg_transcoder] Transcoding process stopped {vhost}/{app}/{stream}"
                     )
                 except Exception as e:
-                    mk_logger.log_warn(f"[ffmpeg_transcoder] 停止转码进程失败: {e}")
+                    mk_logger.log_warn(f"[ffmpeg_transcoder] Failed to stop transcoding process: {e}")
             else:
                 mk_logger.log_info(
-                    f"[ffmpeg_transcoder] 流下线，未找到对应转码进程（已停止或未曾启动）"
+                    f"[ffmpeg_transcoder] Stream went offline; no corresponding transcoding process found (already stopped or never started)"
                     f" {vhost}/{app}/{stream}"
                 )
 
-        return False  # 监听型，始终不拦截后续插件
+        return False  # listening type, never intercepts subsequent plugins
