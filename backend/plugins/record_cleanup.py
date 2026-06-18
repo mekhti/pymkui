@@ -1,12 +1,12 @@
 """
-录像自动清理插件（on_start 类型）
+Automatic recording-cleanup plugin (on_start type)
 
-服务启动时启动后台定时任务，按以下规则清理每条流的旧录像：
-  - max_size_gb：每条流最多保留录像总大小（GB），默认 10
-  - max_days：每条流最多保留录像天数，默认 7
+When the service starts, launch a background scheduled task to clean up old recordings of each stream per the following rules:
+  - max_size_gb: max total recording size to keep per stream (GB), default 10
+  - max_days: max number of days to keep recordings per stream, default 7
 
-超出限制时，按 start_time 从旧到新依次删除数据库记录 **并删除实际文件**，
-直到满足限制为止。
+When the limit is exceeded, delete database records one by one by start_time from old to new **and delete the actual files**,
+until the limit is satisfied.
 """
 
 import os
@@ -18,17 +18,17 @@ import mk_logger
 from py_plugin import PluginBase
 
 
-_CHECK_INTERVAL_SEC  = 3600   # 每小时检查一次
-_cleanup_started     = False  # 防止重复启动
+_CHECK_INTERVAL_SEC  = 3600   # check once per hour
+_cleanup_started     = False  # prevent duplicate startup
 
 
 def _do_cleanup(max_size_bytes: float, max_days: int):
-    """执行一次清理，遍历所有流"""
+    """Perform one cleanup pass, iterating over all streams"""
     try:
         from py_http_api import db
         streams = db.get_recording_streams()
     except Exception as e:
-        mk_logger.log_warn(f"[record_cleanup] 获取流列表失败: {e}")
+        mk_logger.log_warn(f"[record_cleanup] Failed to get the stream list: {e}")
         return
 
     now_ts     = time.time()
@@ -40,18 +40,18 @@ def _do_cleanup(max_size_bytes: float, max_days: int):
         stream = s.get("stream", "")
 
         try:
-            # 取该流所有录像，按时间升序（最旧在前）
+            # Get all recordings of this stream, sorted by time ascending (oldest first)
             rows = db.get_recordings(vhost=vhost, app=app, stream=stream,
                                      limit=100000, offset=0)
             rows.sort(key=lambda r: r.get("start_time") or 0)
         except Exception as e:
-            mk_logger.log_warn(f"[record_cleanup] 查询录像失败 {app}/{stream}: {e}")
+            mk_logger.log_warn(f"[record_cleanup] Failed to query recordings {app}/{stream}: {e}")
             continue
 
         if not rows:
             continue
 
-        # 统计当前总大小
+        # Compute the current total size
         total_size = sum(r.get("file_size") or 0 for r in rows)
 
         for r in rows:
@@ -61,10 +61,10 @@ def _do_cleanup(max_size_bytes: float, max_days: int):
             start_time = r.get("start_time") or 0
             if start_time and start_time < cutoff_ts:
                 should_delete = True
-                reason = f"超过 {max_days} 天"
+                reason = f"exceeds {max_days} days"
             elif total_size > max_size_bytes:
                 should_delete = True
-                reason = f"总大小 {total_size/1024**3:.2f}GB 超出 {max_size_bytes/1024**3:.1f}GB"
+                reason = f"total size {total_size/1024**3:.2f}GB exceeds {max_size_bytes/1024**3:.1f}GB"
 
             if not should_delete:
                 continue
@@ -73,40 +73,40 @@ def _do_cleanup(max_size_bytes: float, max_days: int):
             file_size  = r.get("file_size") or 0
             rec_id     = r.get("id")
 
-            # 删除文件及空父目录
+            # Delete the file and empty parent directories
             if file_path:
                 try:
                     db._remove_file_and_empty_parents(file_path)
                     mk_logger.log_info(
-                        f"[record_cleanup] 已删文件 {file_path}（{reason}）"
+                        f"[record_cleanup] Deleted file {file_path} ({reason})"
                     )
                 except Exception as e:
-                    mk_logger.log_warn(f"[record_cleanup] 删除文件失败 {file_path}: {e}")
+                    mk_logger.log_warn(f"[record_cleanup] Failed to delete file {file_path}: {e}")
 
-            # 删除数据库记录（文件已删，delete_recording 内部会跳过文件删除）
+            # Delete the database record (file already deleted; delete_recording internally skips file deletion)
             try:
                 if rec_id is not None:
                     db.delete_recording(int(rec_id))
                 total_size -= file_size
                 mk_logger.log_info(
-                    f"[record_cleanup] 已删记录 id={rec_id} {app}/{stream} {reason}"
+                    f"[record_cleanup] Deleted record id={rec_id} {app}/{stream} {reason}"
                 )
             except Exception as e:
-                mk_logger.log_warn(f"[record_cleanup] 删除记录失败 id={rec_id}: {e}")
+                mk_logger.log_warn(f"[record_cleanup] Failed to delete record id={rec_id}: {e}")
 
 
 def _cleanup_loop(max_size_bytes: float, max_days: int):
-    """后台循环线程"""
+    """Background loop thread"""
     mk_logger.log_info(
-        f"[record_cleanup] 清理线程启动，"
-        f"最大 {max_size_bytes/1024**3:.1f}GB / {max_days} 天，"
-        f"间隔 {_CHECK_INTERVAL_SEC}s"
+        f"[record_cleanup] Cleanup thread started, "
+        f"max {max_size_bytes/1024**3:.1f}GB / {max_days} days, "
+        f"interval {_CHECK_INTERVAL_SEC}s"
     )
     while True:
         try:
             _do_cleanup(max_size_bytes, max_days)
         except Exception as e:
-            mk_logger.log_warn(f"[record_cleanup] 清理异常: {e}")
+            mk_logger.log_warn(f"[record_cleanup] Cleanup exception: {e}")
         time.sleep(_CHECK_INTERVAL_SEC)
 
 
@@ -114,23 +114,23 @@ class RecordCleanup(PluginBase):
     name        = "record_cleanup"
     version     = "1.0.0"
     description = (
-        "录像自动清理插件（on_start）。"
-        "按流统计总大小和录像日龄，超限时从最旧录像开始删除文件及数据库记录。"
+        "Automatic recording-cleanup plugin (on_start)."
+        "Computes total size and recording age per stream; when limits are exceeded, deletes files and database records starting from the oldest recordings."
     )
     type        = "on_start"
-    interruptible = False  # 监听型：清理完成后不阻断其他插件
+    interruptible = False  # listening type: doesn't block other plugins after cleanup completes
 
     def params(self) -> dict:
         return {
             "max_size_gb": {
                 "type": "number",
                 "default": 10,
-                "description": "每条流最多保留录像总大小（GB），超出则从最旧录像开始删除"
+                "description": "Max total recording size to keep per stream (GB); when exceeded, delete starting from the oldest recordings"
             },
             "max_days": {
                 "type": "number",
                 "default": 7,
-                "description": "每条流最多保留录像天数，超出则删除过期录像"
+                "description": "Max number of days to keep recordings per stream; when exceeded, delete expired recordings"
             },
         }
 
@@ -140,8 +140,8 @@ class RecordCleanup(PluginBase):
             return False
         _cleanup_started = True
 
-        # 从绑定参数中读取配置（可在插件管理页面修改）
-        # 未配置时回落到 params() 中定义的默认值
+        # Read config from the binding params (editable on the Plugins management page)
+        # Fall back to the defaults defined in params() when not configured
         schema       = self.params()
         bound_params = kwargs.get("params", {})
         if isinstance(bound_params, str):
@@ -164,4 +164,4 @@ class RecordCleanup(PluginBase):
             name="record-cleanup",
         )
         t.start()
-        return False  # 非独占
+        return False  # non-exclusive
