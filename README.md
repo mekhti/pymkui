@@ -150,22 +150,6 @@ curl -sv http://localhost:80/login.html
 
 ---
 
-## Screenshots
-
-|                                                       |                                                       |
-| ----------------------------------------------------- | ----------------------------------------------------- |
-| ![Login](image/wechat_2026-03-07_152523_627.png)         | ![Server status](image/wechat_2026-03-07_145716_786.png)   |
-| ![Stream management](image/wechat_2026-03-07_145746_419.png)       | ![Stream info](image/wechat_2026-03-07_152506_741.png)       |
-| ![Stream playback](image/wechat_2026-03-07_145756_844.png)       | ![Viewer list](image/wechat_2026-03-07_145834_262.png)     |
-| ![System settings](image/wechat_2026-03-07_150120_303.png)     | ![Network connections](image/wechat_2026-03-07_145637_562.png)     |
-| ![Browser publishing](image/wechat_2026-03-07_150213_341.png)     | ![Pull-stream proxy](image/wechat_2026-03-18_203037_193.png)     |
-| ![Pull-stream proxy details](image/wechat_2026-03-18_203057_257.png) | ![Add pull-stream proxy](image/wechat_2026-03-18_203133_402.png) |
-| ![Recording management](image/wechat_2026-05-04_105426_633.png)     | ![Full-day recording playback](image/wechat_2026-05-04_105440_247.png) |
-| ![Plugin system](image/wechat_2026-05-04_105512_197.png)     | ![Plugin configuration](image/wechat_2026-05-04_105540_479.png)    |
-| ![Stream info](image/wechat_2026-05-04_105614_128.png)    | ![Probe details](image/wechat_2026-05-04_105632_441.png)        |
-
----
-
 ## FAQ
 
 | Issue                                          | Solution                                                        |
