@@ -2,7 +2,7 @@
 import asyncio
 import threading
 
-# 尝试启用 uvloop
+# Try to enable uvloop
 try:
     import uvloop
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
@@ -16,7 +16,7 @@ class SharedLoop:
 
     @classmethod
     def get_loop(cls):
-        """全局唯一 asyncio loop"""
+        """Global unique asyncio loop"""
         if cls._loop is None:
             cls._loop = asyncio.new_event_loop()
 

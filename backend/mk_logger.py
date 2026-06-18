@@ -12,7 +12,7 @@ def _do_log(level: int, *args):
     lineno = frame_info.lineno
     funcname = frame_info.function
 
-    # 把所有参数转成字符串后用空格拼接
+    # Convert all args to strings and join with spaces
     msg = " ".join(str(arg) for arg in args)
 
     if USE_PLUGIN_LOGGER:
