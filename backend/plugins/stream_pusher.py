@@ -1,14 +1,14 @@
 """
-流转推插件（on_media_changed）
+Stream relay-push plugin (on_media_changed)
 
-当媒体源注册（上线）时，调用 ZLM addStreamPusherProxy 开始转推；
-当媒体源注销（下线）时，调用 ZLM delStreamPusherProxy 停止转推。
+When a media source registers (comes online), call ZLM addStreamPusherProxy to start relaying;
+When a media source unregisters (goes offline), call ZLM delStreamPusherProxy to stop relaying.
 
-支持：
-  - rtsp / rtmp 目标推流（根据 dst_url 的 schema 自动识别）
-  - vhost / app / stream / schema 来源过滤（支持通配符 *）
-  - 目标 URL 变量替换：{vhost} {app} {stream}
-  - multi_binding=True：可多次绑定，每实例推往不同目标
+Supports:
+  - rtsp / rtmp target push (auto-detected from the dst_url schema)
+  - vhost / app / stream / schema source filtering (wildcard * supported)
+  - Target URL variable substitution: {vhost} {app} {stream}
+  - multi_binding=True: can bind multiple times, each instance pushing to a different target
 """
 
 import fnmatch
@@ -21,14 +21,14 @@ from py_plugin import PluginBase
 from shared_loop import SharedLoop
 
 
-# ── 全局推流状态表 ────────────────────────────────────────────────────
-# state_key → ZLM pusher key（addStreamPusherProxy 返回的 data.key）
+# ── Global push-state table ────────────────────────────────────────────────────
+# state_key → ZLM pusher key (data.key returned by addStreamPusherProxy)
 _pusher_keys: dict = {}
 _lock = threading.Lock()
 
 
 def _zlm_base_url() -> str:
-    """获取 ZLM 本机访问地址"""
+    """Get ZLM's local access address"""
     try:
         port = int(mk_loader.get_config("http.port") or 0)
         if port:
@@ -50,7 +50,7 @@ def _add_pusher(dst_schema: str, vhost: str, app: str, stream: str,
                 dst_url: str, rtp_type: int,
                 retry_count: int, timeout_sec: float):
     """
-    调用 ZLM addStreamPusherProxy，同步等待回复并返回key。
+    Call ZLM addStreamPusherProxy, synchronously wait for the reply, and return the key.
     """
     params = {
         "secret":   _zlm_secret(),
@@ -66,118 +66,118 @@ def _add_pusher(dst_schema: str, vhost: str, app: str, stream: str,
     if timeout_sec > 0:
         params["timeout_sec"] = timeout_sec
 
-    # 处理rtsps和rtmps协议，ZLM的addStreamPusherProxy接口只接受rtsp或rtmp
+    # Handle the rtsps and rtmps protocols; ZLM's addStreamPusherProxy interface only accepts rtsp or rtmp
     zlm_schema = dst_schema
     if dst_schema == "rtsps":
         zlm_schema = "rtsp"
     elif dst_schema == "rtmps":
         zlm_schema = "rtmp"
     
-    # 更新params中的schema
+    # Update the schema in params
     params["schema"] = zlm_schema
     
     
-    # 同步调用addStreamPusherProxy接口，等待响应
+    # Synchronously call the addStreamPusherProxy interface and wait for the response
     api_url = f"{_zlm_base_url()}/index/api/addStreamPusherProxy"
     try:
         resp = httpx.get(api_url, params=params, timeout=10.0)
         data = resp.json()
         if data.get("code") == 0:
-            # 从data字段中获取key
+            # Get the key from the data field
             zlm_key = data.get("data", {}).get("key")
             if zlm_key:
                 mk_logger.log_info(
-                    f"[stream_pusher] 转推已启动 {vhost}/{app}/{stream} → {dst_url}  key={zlm_key}"
+                    f"[stream_pusher] Relay started {vhost}/{app}/{stream} → {dst_url}  key={zlm_key}"
                 )
                 return zlm_key
             else:
-                # 如果ZLM没有返回key，使用我们自己生成的key
+                # If ZLM didn't return a key, use the key we generated ourselves
                 mk_logger.log_info(
-                    f"[stream_pusher] 转推已启动 {vhost}/{app}/{stream} → {dst_url}  key={key} (ZLM未返回key)")
+                    f"[stream_pusher] Relay started {vhost}/{app}/{stream} → {dst_url}  key={key} (ZLM didn't return a key)")
                 return None
         else:
             mk_logger.log_warn(
-                f"[stream_pusher] addStreamPusherProxy 失败: code={data.get('code')} "
+                f"[stream_pusher] addStreamPusherProxy failed: code={data.get('code')} "
                 f"msg={data.get('msg')}  {vhost}/{app}/{stream} → {dst_url}"
             )
             return None
     except Exception as e:
-        mk_logger.log_warn(f"[stream_pusher] addStreamPusherProxy 请求异常: {e}")
+        mk_logger.log_warn(f"[stream_pusher] addStreamPusherProxy request exception: {e}")
         return None
 
 
 def _del_pusher(key: str):
-    """调用 ZLM delStreamPusherProxy 停止转推，同步等待回复"""
+    """Call ZLM delStreamPusherProxy to stop relaying, synchronously waiting for the reply"""
     api_url = f"{_zlm_base_url()}/index/api/delStreamPusherProxy"
     params = {"secret": _zlm_secret(), "key": key}
     try:
         resp = httpx.get(api_url, params=params, timeout=10.0)
         data = resp.json()
         if data.get("code") == 0:
-            mk_logger.log_info(f"[stream_pusher] 转推已停止 key={key}")
+            mk_logger.log_info(f"[stream_pusher] Relay stopped key={key}")
         else:
             mk_logger.log_warn(
-                f"[stream_pusher] delStreamPusherProxy 失败: code={data.get('code')} "
+                f"[stream_pusher] delStreamPusherProxy failed: code={data.get('code')} "
                 f"msg={data.get('msg')}  key={key}"
             )
     except Exception as e:
-        mk_logger.log_warn(f"[stream_pusher] delStreamPusherProxy 请求异常: {e}")
+        mk_logger.log_warn(f"[stream_pusher] delStreamPusherProxy request exception: {e}")
 
 
-# ── 插件类 ────────────────────────────────────────────────────────────
+# ── Plugin class ────────────────────────────────────────────────────────────
 
 class StreamPusher(PluginBase):
     name        = "stream_pusher"
     version     = "1.0.0"
     description = (
-        "流转推插件（on_media_changed）。"
-        "流上线时自动调用 ZLM addStreamPusherProxy 转推到目标地址，"
-        "流下线时调用 delStreamPusherProxy 停止转推。"
-        "支持 rtsp/rtmp 目标，目标 URL 支持 {vhost}/{app}/{stream} 变量替换。"
+        "Stream relay-push plugin (on_media_changed)."
+        "When the stream comes online, automatically call ZLM addStreamPusherProxy to relay to the target address, "
+        "When the stream goes offline, call delStreamPusherProxy to stop relaying."
+        "Supports rtsp/rtmp targets; the target URL supports {vhost}/{app}/{stream} variable substitution."
     )
     type          = "on_media_changed"
-    interruptible = False   # 监听型：不拦截事件，继续派发后续插件
-    multi_binding = True    # 支持多实例，每实例独立推往不同目标
+    interruptible = False   # listening type: doesn't intercept events, continues dispatching to subsequent plugins
+    multi_binding = True    # supports multiple instances, each independently pushing to a different target
 
     def params(self) -> dict:
         return {
             "dst_url": {
                 "type": "str",
                 "description": (
-                    "目标转推地址，必须以 rtsp:// 或 rtmp:// 开头。"
-                    "支持变量：{vhost} {app} {stream}，"
-                    "例如：rtmp://relay.example.com/live/{stream}"
+                    "Target relay address; must start with rtsp:// or rtmp://."
+                    "Supported variables: {vhost} {app} {stream}, "
+                    "e.g.: rtmp://relay.example.com/live/{stream}"
                 ),
                 "default": "",
             },
             "rtp_type": {
                 "type": "int",
-                "description": "RTSP 推流传输方式：0=TCP，1=UDP",
+                "description": "RTSP push transport mode: 0=TCP, 1=UDP",
                 "default": 0,
             },
             "retry_count": {
                 "type": "int",
-                "description": "推流失败重试次数，-1 无限重试，0 不重试",
+                "description": "Push retry count on failure; -1 = infinite retries, 0 = no retry",
                 "default": -1,
             },
             "timeout_sec": {
                 "type": "float",
-                "description": "推流超时时间（秒），0 使用 ZLM 默认值",
+                "description": "Push timeout (seconds); 0 uses the ZLM default",
                 "default": 0,
             },
             "vhost_filter": {
                 "type": "str",
-                "description": "来源 vhost 过滤，支持通配符 *，默认匹配所有",
+                "description": "Source vhost filter; wildcard * supported; matches all by default",
                 "default": "*",
             },
             "app_filter": {
                 "type": "str",
-                "description": "来源 app 过滤，支持通配符 *，默认匹配所有",
+                "description": "Source app filter; wildcard * supported; matches all by default",
                 "default": "*",
             },
             "stream_filter": {
                 "type": "str",
-                "description": "来源 stream 过滤，支持通配符 *，默认匹配所有",
+                "description": "Source stream filter; wildcard * supported; matches all by default",
                 "default": "*",
             },
         }
@@ -190,7 +190,7 @@ class StreamPusher(PluginBase):
         if sender is None:
             return False
 
-        # 同步获取来源流信息（sender是临时对象，不可在异步协程中引用）
+        # Synchronously get source stream info (sender is a temporary object, can't be referenced in async coroutines)
         try:
             src_schema = sender.getSchema()
             mt     = sender.getMediaTuple()
@@ -198,10 +198,10 @@ class StreamPusher(PluginBase):
             app    = mt.app
             stream = mt.stream
         except Exception as e:
-            mk_logger.log_warn(f"[stream_pusher] 获取流信息异常: {e}")
+            mk_logger.log_warn(f"[stream_pusher] Exception getting stream info: {e}")
             return False
 
-        # 读取绑定参数（优先实例参数，缺省取 params() 默认值）
+        # Read binding params (instance params take priority; fall back to params() defaults)
         p = self.params()
         def _get(key):
             return binding_params.get(key, p[key]["default"])
@@ -217,48 +217,48 @@ class StreamPusher(PluginBase):
         if not dst_url_tpl:
             return False
 
-        # ── 来源过滤 ──
+        # ── Source filtering ──
         if not fnmatch.fnmatch(vhost,  vhost_filter):  return False
         if not fnmatch.fnmatch(app,    app_filter):    return False
         if not fnmatch.fnmatch(stream, stream_filter): return False
         
-        # ── 根据推流URL协议类型自动过滤事件 ──
-        # 提取目标协议
+        # ── Filter events automatically by the push URL protocol type ──
+        # Extract the target protocol
         dst_schema = dst_url_tpl.split("://")[0].lower() if "://" in dst_url_tpl else ""
         if dst_schema in ("rtsp", "rtsps"):
-            # 如果推流URL是RTSP(S)，则只处理RTSP来源事件
+            # If the push URL is RTSP(S), only handle RTSP source events
             if src_schema.lower() != "rtsp":
                 return False
         elif dst_schema in ("rtmp", "rtmps"):
-            # 如果推流URL是RTMP(S)，则只处理RTMP来源事件
+            # If the push URL is RTMP(S), only handle RTMP source events
             if src_schema.lower() != "rtmp":
                 return False
 
-        # ── 变量替换生成实际目标 URL ──
+        # ── Variable substitution to generate the actual target URL ──
         dst_url = (dst_url_tpl
                    .replace("{vhost}",  vhost)
                    .replace("{app}",    app)
                    .replace("{stream}", stream))
 
-        # ── 提取目标协议 ──
+        # ── Extract the target protocol ──
         dst_schema = dst_url.split("://")[0].lower() if "://" in dst_url else ""
         if dst_schema not in ("rtsp", "rtsps", "rtmp", "rtmps"):
             mk_logger.log_warn(
-                f"[stream_pusher] 不支持的目标协议 '{dst_schema}'，"
-                f"dst_url={dst_url}，请使用 rtsp://、rtsps://、rtmp:// 或 rtmps:// 开头"
+                f"[stream_pusher] Unsupported target protocol '{dst_schema}', "
+                f"dst_url={dst_url}, must start with rtsp://, rtsps://, rtmp://, or rtmps://"
             )
             return False
 
-        # 状态 key：模板 URL + 流标识，唯一标识一个推流任务
+        # State key: template URL + stream identifier, uniquely identifying one push task
         state_key = f"{dst_url_tpl}|{vhost}|{app}|{stream}"
 
-        # 创建异步协程来执行实际的HTTP调用（不引用sender对象）
+        # Create an async coroutine to perform the actual HTTP call (without referencing the sender object)
         async def _async_run():
             if is_register:
                 with _lock:
                     if state_key in _pusher_keys:
                         mk_logger.log_info(
-                            f"[stream_pusher] 推流已存在，跳过重复启动 "
+                            f"[stream_pusher] Push already exists, skipping duplicate start "
                             f"{vhost}/{app}/{stream} → {dst_url}"
                         )
                         return
@@ -277,12 +277,12 @@ class StreamPusher(PluginBase):
                     _del_pusher(zlm_key)
                 else:
                     mk_logger.log_info(
-                        f"[stream_pusher] 流下线，未找到对应推流记录（已停止或未曾启动）"
+                        f"[stream_pusher] Stream went offline; no corresponding push record found (already stopped or never started)"
                         f" {vhost}/{app}/{stream}"
                     )
 
-        # 使用SharedLoop在后台执行异步协程
+        # Use SharedLoop to run the async coroutine in the background
         loop = SharedLoop.get_loop()
         asyncio.run_coroutine_threadsafe(_async_run(), loop)
         
-        return False  # 监听型，始终不拦截后续插件
+        return False  # listening type, never intercepts subsequent plugins
